@@ -29,9 +29,7 @@ class RegexScorer:
         if not field:
             raise ValueError("RegexScorer requires a non-empty field name")
         self.field = field
-        self.pattern: re.Pattern[str] = (
-            re.compile(pattern) if isinstance(pattern, str) else pattern
-        )
+        self.pattern: re.Pattern[str] = re.compile(pattern) if isinstance(pattern, str) else pattern
         self.match_mode: MatchMode = match_mode
         self.name: str = name or f"regex[{field}]"
 

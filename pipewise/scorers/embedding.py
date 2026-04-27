@@ -49,9 +49,7 @@ class EmbeddingSimilarityScorer:
         name: str | None = None,
     ) -> None:
         if not field:
-            raise ValueError(
-                "EmbeddingSimilarityScorer requires a non-empty field name"
-            )
+            raise ValueError("EmbeddingSimilarityScorer requires a non-empty field name")
         if not 0.0 <= threshold <= 1.0:
             raise ValueError("threshold must be in [0.0, 1.0]")
         self.field = field
@@ -96,13 +94,11 @@ class EmbeddingSimilarityScorer:
 
         if not isinstance(actual_text, str):
             return self._fail(
-                f"actual.outputs['{self.field}'] is "
-                f"{type(actual_text).__name__}, not str"
+                f"actual.outputs['{self.field}'] is {type(actual_text).__name__}, not str"
             )
         if not isinstance(expected_text, str):
             return self._fail(
-                f"expected.outputs['{self.field}'] is "
-                f"{type(expected_text).__name__}, not str"
+                f"expected.outputs['{self.field}'] is {type(expected_text).__name__}, not str"
             )
 
         model = self._load_model()
@@ -120,9 +116,7 @@ class EmbeddingSimilarityScorer:
             score=score_value,
             passed=passed,
             reasoning=(
-                None
-                if passed
-                else f"similarity {score_value:.3f} below threshold {self.threshold}"
+                None if passed else f"similarity {score_value:.3f} below threshold {self.threshold}"
             ),
             metadata={
                 "raw_similarity": raw_sim,

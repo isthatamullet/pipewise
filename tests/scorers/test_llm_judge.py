@@ -411,11 +411,7 @@ class TestCostTracking:
             usage=usage,
         )
         scorer.score(_step({"text": "x"}))
-        expected = (
-            (100 / 1_000_000) * 3.0
-            + (100 / 1_000_000) * 15.0
-            + (1000 / 1_000_000) * 0.30
-        )
+        expected = (100 / 1_000_000) * 3.0 + (100 / 1_000_000) * 15.0 + (1000 / 1_000_000) * 0.30
         assert abs(scorer.cumulative_cost_usd - expected) < 1e-9
 
     def test_unknown_model_uses_default_pricing(self) -> None:

@@ -58,9 +58,7 @@ class CostBudgetScorer:
             score=1.0 if passed else 0.0,
             passed=passed,
             reasoning=(
-                None
-                if passed
-                else f"total_cost_usd {cost} exceeds budget {self.budget_usd}"
+                None if passed else f"total_cost_usd {cost} exceeds budget {self.budget_usd}"
             ),
             metadata={
                 "actual": cost,
@@ -105,9 +103,7 @@ class LatencyBudgetScorer:
             score=1.0 if passed else 0.0,
             passed=passed,
             reasoning=(
-                None
-                if passed
-                else f"total_latency_ms {latency} exceeds budget {self.budget_ms}"
+                None if passed else f"total_latency_ms {latency} exceeds budget {self.budget_ms}"
             ),
             metadata={
                 "actual": latency,
@@ -135,8 +131,7 @@ def _missing_result(
         score=0.0,
         passed=False,
         reasoning=(
-            f"{field} is None; budget cannot be evaluated "
-            "(set on_missing='skip' to allow this)"
+            f"{field} is None; budget cannot be evaluated (set on_missing='skip' to allow this)"
         ),
         metadata={"missing": True, "budget": budget, "unit": unit},
     )

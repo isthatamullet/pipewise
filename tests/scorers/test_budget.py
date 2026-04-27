@@ -83,9 +83,7 @@ class TestCostBudgetScorer:
         assert CostBudgetScorer(budget_usd=2.5).name == "cost_budget[2.5]"
 
     def test_custom_name(self) -> None:
-        assert (
-            CostBudgetScorer(budget_usd=1.0, name="strict_cost").name == "strict_cost"
-        )
+        assert CostBudgetScorer(budget_usd=1.0, name="strict_cost").name == "strict_cost"
 
 
 class TestLatencyBudgetScorer:
@@ -122,9 +120,7 @@ class TestLatencyBudgetScorer:
             LatencyBudgetScorer(budget_ms=-1)
 
     def test_default_name(self) -> None:
-        assert (
-            LatencyBudgetScorer(budget_ms=2000).name == "latency_budget[2000ms]"
-        )
+        assert LatencyBudgetScorer(budget_ms=2000).name == "latency_budget[2000ms]"
 
     def test_custom_name(self) -> None:
         assert LatencyBudgetScorer(budget_ms=1000, name="p95").name == "p95"

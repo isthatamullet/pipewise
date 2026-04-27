@@ -106,10 +106,7 @@ class TestExactMatchScorer:
 
     def test_default_name_includes_fields(self) -> None:
         assert ExactMatchScorer(fields=["title"]).name == "exact_match[title]"
-        assert (
-            ExactMatchScorer(fields=["title", "summary"]).name
-            == "exact_match[title,summary]"
-        )
+        assert ExactMatchScorer(fields=["title", "summary"]).name == "exact_match[title,summary]"
 
     def test_custom_name_used(self) -> None:
         scorer = ExactMatchScorer(fields=["title"], name="my_scorer")

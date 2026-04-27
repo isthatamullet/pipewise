@@ -62,13 +62,11 @@ class NumericToleranceScorer:
 
         if not _is_real_number(actual_val):
             return self._fail(
-                f"actual.outputs['{self.field}'] is "
-                f"{type(actual_val).__name__}, not a number"
+                f"actual.outputs['{self.field}'] is {type(actual_val).__name__}, not a number"
             )
         if not _is_real_number(expected_val):
             return self._fail(
-                f"expected.outputs['{self.field}'] is "
-                f"{type(expected_val).__name__}, not a number"
+                f"expected.outputs['{self.field}'] is {type(expected_val).__name__}, not a number"
             )
 
         delta = abs(actual_val - expected_val)
@@ -95,8 +93,7 @@ class NumericToleranceScorer:
                 )
             else:
                 reasoning = (
-                    f"|{actual_val} - {expected_val}| = {delta} > "
-                    f"tolerance {self.tolerance}"
+                    f"|{actual_val} - {expected_val}| = {delta} > tolerance {self.tolerance}"
                 )
 
         return ScoreResult(

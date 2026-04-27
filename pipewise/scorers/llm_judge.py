@@ -322,8 +322,7 @@ class LlmJudgeScorer:
             ]
             for i, v in enumerate(verdicts, start=1):
                 lines.append(
-                    f"Judge {i} (passed={v['passed']}, score={v['score']}): "
-                    f"{v['reasoning']}"
+                    f"Judge {i} (passed={v['passed']}, score={v['score']}): {v['reasoning']}"
                 )
             reasoning = "\n".join(lines)
 

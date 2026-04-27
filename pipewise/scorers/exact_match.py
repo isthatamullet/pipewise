@@ -37,9 +37,7 @@ class ExactMatchScorer:
         expected: StepExecution | None = None,
     ) -> ScoreResult:
         if expected is None:
-            raise ValueError(
-                "ExactMatchScorer requires an `expected` step to compare against"
-            )
+            raise ValueError("ExactMatchScorer requires an `expected` step to compare against")
 
         matches: list[str] = []
         mismatches: list[dict[str, Any]] = []

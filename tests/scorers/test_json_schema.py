@@ -36,9 +36,7 @@ class TestJsonSchemaScorer:
                 "rating": {"type": "integer"},
             },
         }
-        result = JsonSchemaScorer(schema=schema).score(
-            _step({"title": "Hello", "rating": 80})
-        )
+        result = JsonSchemaScorer(schema=schema).score(_step({"title": "Hello", "rating": 80}))
         assert result.passed is True
         assert result.score == 1.0
         assert result.reasoning is None

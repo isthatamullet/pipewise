@@ -39,10 +39,7 @@ from pipewise.scorers import (
 
 # Sample FactSpark article — used when running locally with FactSpark checked out.
 _LOCAL_FACTSPARK_STEP = (
-    Path.home()
-    / "factspark"
-    / "articles"
-    / "02242026_bbc_trump_tariffs_supreme_court_step5.json"
+    Path.home() / "factspark" / "articles" / "02242026_bbc_trump_tariffs_supreme_court_step5.json"
 )
 
 
@@ -233,10 +230,7 @@ def main(argv: list[str] | None = None) -> int:
                 _print_result("LlmJudgeScorer (real API)", judge.score(step))
                 print(f"           ${judge.cumulative_cost_usd:.4f} spent")
             except ImportError:
-                print(
-                    "  [SKIP] LlmJudgeScorer "
-                    "(install with: pip install 'pipewise[llm-judge]')"
-                )
+                print("  [SKIP] LlmJudgeScorer (install with: pip install 'pipewise[llm-judge]')")
     else:
         print("  [SKIP] LlmJudgeScorer (pass --use-llm to enable)")
 

@@ -36,9 +36,7 @@ class TestRegexScorer:
         assert result.reasoning is None
 
     def test_search_no_match_fails(self) -> None:
-        result = RegexScorer(field="text", pattern=r"\d+").score(
-            _step({"text": "no digits here"})
-        )
+        result = RegexScorer(field="text", pattern=r"\d+").score(_step({"text": "no digits here"}))
         assert result.passed is False
         assert result.score == 0.0
         assert "did not search" in (result.reasoning or "")
@@ -84,9 +82,7 @@ class TestRegexScorer:
         assert RegexScorer(field="title", pattern=r".*").name == "regex[title]"
 
     def test_custom_name(self) -> None:
-        assert (
-            RegexScorer(field="title", pattern=r".*", name="my_regex").name == "my_regex"
-        )
+        assert RegexScorer(field="title", pattern=r".*", name="my_regex").name == "my_regex"
 
     def test_metadata_includes_pattern_and_mode(self) -> None:
         result = RegexScorer(field="x", pattern=r"foo", match_mode="search").score(
