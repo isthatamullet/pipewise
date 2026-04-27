@@ -1,10 +1,9 @@
-# Private — career strategy, target companies, draft outreach
-HIRING_PLAYBOOK.md
+# Local-only docs — career strategy, costs, task board, session handoff.
+# Single rule covers the whole private surface; new private files just go here.
+.local/
 
-# Operational / personal docs — see git history rewrite 2026-04-27
-COSTS.md
-PROJECT_BOARD_SETUP.md
-SESSION_HANDOFF.md
+# Local-only Claude convention overlay (kept at root for Claude Code to load).
+CLAUDE.local.md
 
 # Archived planning transcript — grep/human reference only, do not load into Claude
 *-FULL-TRANSCRIPT.txt

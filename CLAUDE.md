@@ -1,24 +1,22 @@
 # pipewise — CLAUDE.md
 
 > Project conventions and rules for any Claude Code session in this repo.
-> If this is your first time in this project: read `SESSION_HANDOFF.md` first.
+> If a `CLAUDE.local.md` is present alongside this file, read it too — it
+> contains operational notes and pointers that aren't part of the public repo.
 
 ## Project Overview
 
-**pipewise** is an open-source Python library + CLI for evaluating multi-step LLM pipelines. It is pipeline-agnostic: any pipeline plugs in via an adapter file. Reference integrations: FactSpark (`/home/user/factspark/`) and Tyler's resume pipeline (`/home/user/tyler/`).
+**pipewise** is an open-source Python library + CLI for evaluating multi-step LLM pipelines. It is pipeline-agnostic: any pipeline plugs in via an adapter file. Reference integrations: FactSpark and a resume-tailoring pipeline.
 
 **Goal:** v1.0 in 6-8 weeks.
 
 ## Documentation Hierarchy
 
 Read in this order when starting fresh:
-1. **SESSION_HANDOFF.md** — what's currently happening, what was just decided
-2. **PLAN.md** — architecture, phases, schema, risks/decisions table
-3. **POSITIONING.md** — the canonical pitch (used by README, posts, cover letters)
-4. **HIRING_PLAYBOOK.md** — Tyler's career strategy (PRIVATE, .gitignored)
-5. **BACKLOG.md** — deferred items with explicit triggers
-6. **COSTS.md** — out-of-pocket costs, budget controls, API spending levers
-7. **PROJECT_BOARD_SETUP.md** — items ready to import into GitHub Projects
+1. **PLAN.md** — architecture, phases, schema, risks/decisions table
+2. **POSITIONING.md** — the canonical pitch (used by README, posts, cover letters)
+3. **BACKLOG.md** — deferred items with explicit triggers
+4. **CLAUDE.local.md** (if present) — local-only working notes
 
 When information conflicts, the most recent doc update wins. Update both source and any derived surfaces (README, etc.).
 
@@ -76,9 +74,7 @@ pipewise/
 
 - **Don't use `sed -i` on JSON files.** Backup → edit → validate → atomic move. (Carries over from FactSpark.)
 - **Don't skip git hooks** (`--no-verify`, etc.) without explicit approval.
-- **Don't auto-deploy without confirmation.** Tyler reviews before deploying.
-- **Don't auto-post to LinkedIn/Twitter.** Tyler reviews and posts personally.
-- **Don't commit HIRING_PLAYBOOK.md.** It's in `.gitignore`. Names companies, drafts outreach, tracks rejections — all private.
+- **Don't auto-deploy without confirmation.** Maintainer reviews before deploying.
 - **Don't optimize prematurely.** v1 is file-based; database optimization is parked. Don't add it.
 - **Don't add features users haven't asked for.** Stay on PLAN.md scope.
 
@@ -103,8 +99,7 @@ uv run pipewise diff <report1.json> <report2.json>
 ## Communication Channels
 
 - **GitHub issues** — feature requests, bugs (post-Phase 0)
-- **GitHub Projects** — task tracking (set up in Phase 0 from PROJECT_BOARD_SETUP.md)
-- **LinkedIn (Tyler posts)** — bi-weekly progress posts, drafts in `posts/`
+- **GitHub Projects** — task tracking
 - **Show HN (Phase 6)** — v1.0 launch
 
 ## Workflow Rhythm — Match Ceremony to Risk
@@ -126,7 +121,7 @@ Three tiers of workflow, calibrated to change risk:
 - **Phase 4+:** switch to PR-per-feature (now there are reference integrations and potential external eyes)
 - **Phase 6+:** maintain PR discipline; engage Gemini Code Assist productively
 
-The artifacts already produced (PLAN, POSITIONING, BACKLOG, COSTS, HIRING_PLAYBOOK, PROJECT_BOARD_SETUP) are sufficient up-front planning. Don't re-plan unless the situation actually changes.
+The artifacts already produced (PLAN, POSITIONING, BACKLOG) are sufficient up-front planning. Don't re-plan unless the situation actually changes.
 
 ## Companion Codebases
 
