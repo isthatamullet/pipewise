@@ -128,7 +128,13 @@ def compute_diff(report_a: EvalReport, report_b: EvalReport) -> ReportDiff:
         idx_a = _index_run(runs_a[run_id])
         idx_b = _index_run(runs_b[run_id])
 
-        for key in sorted(set(idx_a) | set(idx_b)):
+        for key in sorted(
+            set(idx_a) | set(idx_b),
+            # `step_id` is `str | None`. Python can't compare None to str,
+            # so we sort run-level entries (step_id=None) before step-level
+            # entries via the `(is_run_level, step_id, scorer_name)` tuple.
+            key=lambda k: (k.step_id is not None, k.step_id or "", k.scorer_name),
+        ):
             in_a = key in idx_a
             in_b = key in idx_b
             if in_a and not in_b:

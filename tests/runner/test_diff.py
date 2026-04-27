@@ -156,6 +156,38 @@ class TestComputeDiff:
         )
         assert len(diff.absent_in_a) == 1
 
+    def test_mixed_step_and_run_level_entries_sort_without_typeerror(self) -> None:
+        # Regression guard: `_ScoreEntryKey.step_id` is `str | None`, and an
+        # earlier `compute_diff` implementation sorted the union of keys
+        # directly — Python can't compare None to str, which crashed when a
+        # run had both step-level and run-level scorer entries.
+        a = _report(
+            runs=[
+                _run(
+                    step_scores=[
+                        StepScoreEntry(
+                            step_id="s1", scorer_name="step-x", result=_result(1.0, True)
+                        )
+                    ],
+                    run_scores=[RunScoreEntry(scorer_name="run-y", result=_result(1.0, True))],
+                )
+            ]
+        )
+        b = _report(
+            runs=[
+                _run(
+                    step_scores=[
+                        StepScoreEntry(
+                            step_id="s1", scorer_name="step-x", result=_result(0.0, False)
+                        )
+                    ],
+                    run_scores=[RunScoreEntry(scorer_name="run-y", result=_result(0.0, False))],
+                )
+            ]
+        )
+        diff = compute_diff(a, b)
+        assert len(diff.regressions) == 2
+
 
 class TestFormatDiff:
     def test_renders_summary_line(self) -> None:
