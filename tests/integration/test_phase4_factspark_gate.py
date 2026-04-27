@@ -167,7 +167,9 @@ def test_run_status_and_step_outputs_consistent_with_source_artifacts() -> None:
     for run in runs:
         for i, step in enumerate(run.steps):
             source = json.loads(
-                (_FACTSPARK_ARTICLES_DIR / f"{run.run_id}_step{i + 1}.json").read_text()
+                (_FACTSPARK_ARTICLES_DIR / f"{run.run_id}_step{i + 1}.json").read_text(
+                    encoding="utf-8"
+                )
             )
             assert step.outputs == source, (
                 f"{run.run_id}/step{i + 1}: adapter outputs diverge from source JSON"
