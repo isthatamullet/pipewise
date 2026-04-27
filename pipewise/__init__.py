@@ -8,6 +8,11 @@ from pipewise.core.schema import (
     StepExecution,
     StepStatus,
 )
+from pipewise.core.scorer import (
+    RunScorer,
+    ScoreResult,
+    StepScorer,
+)
 
 try:
     __version__ = version("pipewise")
@@ -16,8 +21,11 @@ except PackageNotFoundError:  # pragma: no cover
 
 __all__ = [
     "PipelineRun",
+    "RunScorer",
     "RunStatus",
+    "ScoreResult",
     "StepExecution",
+    "StepScorer",
     "StepStatus",
     "__version__",
 ]

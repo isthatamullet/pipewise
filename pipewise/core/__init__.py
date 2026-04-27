@@ -6,10 +6,18 @@ from pipewise.core.schema import (
     StepExecution,
     StepStatus,
 )
+from pipewise.core.scorer import (
+    RunScorer,
+    ScoreResult,
+    StepScorer,
+)
 
 __all__ = [
     "PipelineRun",
+    "RunScorer",
     "RunStatus",
+    "ScoreResult",
     "StepExecution",
+    "StepScorer",
     "StepStatus",
 ]
