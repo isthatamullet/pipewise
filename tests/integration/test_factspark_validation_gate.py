@@ -22,7 +22,7 @@ import pytest
 
 from pipewise import PipelineRun, StepExecution
 
-FACTSPARK_ARTICLES_DIR = Path("/home/user/factspark/articles")
+FACTSPARK_ARTICLES_DIR = Path.home() / "factspark" / "articles"
 
 # Reference article: BBC piece on Trump tariffs / Supreme Court (2026-02-24).
 SAMPLE_ARTICLE_PREFIX = "02242026_bbc_trump_tariffs_supreme_court"

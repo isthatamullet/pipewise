@@ -1,5 +1,5 @@
-# Local-only docs — career strategy, costs, task board, session handoff.
-# Single rule covers the whole private surface; new private files just go here.
+# Local-only docs and scripts — single rule covers the whole private
+# surface. Add new private files here rather than to per-file gitignore lines.
 .local/
 
 # Local-only Claude convention overlay (kept at root for Claude Code to load).

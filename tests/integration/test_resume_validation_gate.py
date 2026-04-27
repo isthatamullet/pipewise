@@ -31,7 +31,7 @@ import pytest
 
 from pipewise import PipelineRun, StepExecution
 
-RESUME_DEEPINTENT_DIR = Path("/home/user/tyler/jobs/resumes/deepintent")
+RESUME_DEEPINTENT_DIR = Path.home() / "tyler" / "jobs" / "resumes" / "deepintent"
 JOB_BASE = "deepintent_senior_program_manager"
 
 pytestmark = pytest.mark.skipif(
