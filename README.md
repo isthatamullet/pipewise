@@ -77,10 +77,19 @@ Multi-step LLM pipelines silently break in ways that are nearly invisible until 
 
 - **Prompt edits cascade unpredictably.** Editing the prompt in step 3 of a 7-step pipeline can shift output distributions in step 5 without warning.
 - **Model swaps create silent drift.** Swapping Claude Opus → Sonnet for cost reasons can change a step's behavior subtly enough that no one notices for days.
-- **Cost is opaque.** Most teams know their total monthly API spend. Almost none can tell you which step in their pipeline costs 60% of the bill.
+- **Cost is opaque.** Most teams know their total monthly API spend. Almost none can tell you which step in their pipeline costs 60% of the bill. Pipewise's schema captures cost per step and `CostBudgetScorer` enforces budgets — *when your pipeline can measure it*. (See [Cost capture status](#cost-capture-status) below.)
 - **Existing eval tools assume single-prompt.** Promptfoo, Braintrust, LangSmith, and DeepEval were designed for testing one prompt → one output. They have to be contorted to evaluate multi-step pipelines, and the contortion loses fidelity at the step level.
 
-Pipewise treats the **pipeline run** as the unit of evaluation, with step-level scoring, cost attribution per step, and regression diffing across pipeline structure changes.
+Pipewise treats the **pipeline run** as the unit of evaluation, with step-level scoring, cost attribution support, and regression diffing across pipeline structure changes.
+
+## Cost capture status
+
+Pipewise's `PipelineRun` schema and `CostBudgetScorer` / `LatencyBudgetScorer` are ready to enforce budgets per step or per run. Whether they have data to enforce against depends on your pipeline:
+
+- **SDK-based pipelines** (direct `anthropic.messages.create(...)` calls or equivalent): your adapter can capture `usage.input_tokens` / `usage.output_tokens`, compute cost from a per-model price table, and populate `step.cost_usd` / `step.latency_ms`. Budget scorers work end-to-end.
+- **Claude-Code-orchestrated pipelines** (steps run as `.claude/agents/*.md` files): Claude Code does not currently expose per-agent usage telemetry to user code. Adapters for these pipelines populate cost fields with `None` and use `on_missing="skip"` on budget scorers. The schema is forward-compatible — once the data is available, no migration needed.
+
+Cost capture for Claude-Code-orchestrated pipelines is on the roadmap once either (a) Claude Code exposes per-agent usage telemetry, or (b) a contributor opens a PR with an SDK-based pipeline integration.
 
 ## How it's positioned vs. existing tools
 
@@ -99,6 +108,7 @@ Pipewise treats the **pipeline run** as the unit of evaluation, with step-level 
 - **Not a chatbot eval tool.** Pipewise's value starts at step count ≥ 2.
 - **Not a tracing/observability tool.** Use Langfuse, LangSmith, or Datadog LLM Observability for tracing. Pipewise consumes their output via an adapter; it doesn't replace them.
 - **Not coupled to any model provider.** Anthropic for the v1 `LlmJudgeScorer` only because that's what the maintainer has access to during development; pluggable from v1.1.
+- **Not a token-capture / instrumentation tool.** Pipewise consumes cost / latency / token data when your pipeline can measure it; it does not instrument your pipeline for you. SDK-based pipelines do this in the adapter; Claude-Code-orchestrated pipelines wait on upstream telemetry.
 
 ## The adapter pattern (the key architectural commitment)
 
