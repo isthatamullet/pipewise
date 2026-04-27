@@ -89,7 +89,7 @@ Pipewise's `PipelineRun` schema and `CostBudgetScorer` / `LatencyBudgetScorer` a
 - **SDK-based pipelines** (direct `anthropic.messages.create(...)` calls or equivalent): your adapter can capture `usage.input_tokens` / `usage.output_tokens`, compute cost from a per-model price table, and populate `step.cost_usd` / `step.latency_ms`. Budget scorers work end-to-end.
 - **Claude-Code-orchestrated pipelines** (steps run as `.claude/agents/*.md` files): Claude Code does not currently expose per-agent usage telemetry to user code. Adapters for these pipelines populate cost fields with `None` and use `on_missing="skip"` on budget scorers. The schema is forward-compatible — once the data is available, no migration needed.
 
-Cost capture for Claude-Code-orchestrated pipelines is on the roadmap once either (a) Claude Code exposes per-agent usage telemetry, or (b) a contributor opens a PR with an SDK-based pipeline integration.
+Cost capture for Claude-Code-orchestrated pipelines is on the roadmap once Claude Code exposes per-agent usage telemetry. (Separately, the cost-attribution path is also demonstrable in this repo as soon as a contributor opens a PR with an SDK-based pipeline integration — that's a different reference adapter, not a fix for the Claude Code path.)
 
 ## How it's positioned vs. existing tools
 
