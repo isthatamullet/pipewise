@@ -1,0 +1,42 @@
+# Private — career strategy, target companies, draft outreach
+HIRING_PLAYBOOK.md
+
+# Archived planning transcript — grep/human reference only, do not load into Claude
+*-FULL-TRANSCRIPT.txt
+
+# Local pipewise output (generated runs, reports)
+runs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+
+# uv
+.uv/
+
+# Test / lint / type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
