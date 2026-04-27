@@ -24,6 +24,7 @@ classifiers = [
 
 dependencies = [
     "pydantic>=2.7,<3",
+    "jsonschema>=4.21",
 ]
 
 [project.optional-dependencies]
@@ -52,6 +53,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.10",
+    "types-jsonschema>=4.21",
 ]
 
 [tool.ruff]
