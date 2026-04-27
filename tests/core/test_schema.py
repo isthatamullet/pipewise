@@ -515,6 +515,208 @@ class TestPipelineRun:
         assert not any(s.step_id == "export_canva" for s in restored.steps)
 
 
+class TestSchemaPolicies:
+    """Policy-level assertions: documented behaviors that consumers can rely on.
+
+    Each test here is the canonical reference for the behavior it documents —
+    if the test changes, the schema's contract has changed.
+    """
+
+    def test_clock_skew_allowed_step_started_at_after_completed_at(self) -> None:
+        """Policy (PLAN.md §7 D13): the schema does NOT enforce
+        `started_at <= completed_at`. Reasoning: clock skew across
+        distributed systems / CI runners makes strict ordering a frequent
+        false-positive that adapters can't always fix at their layer.
+
+        Adapters that DO want strict ordering can validate at their own
+        layer; pipewise core stays permissive.
+        """
+        step = StepExecution(
+            step_id="x",
+            step_name="X",
+            started_at=NOW + timedelta(seconds=10),
+            completed_at=NOW,  # earlier than started_at — allowed
+            status="completed",
+        )
+        assert step.completed_at is not None
+        assert step.completed_at < step.started_at
+
+    def test_clock_skew_allowed_run_started_at_after_completed_at(self) -> None:
+        """Same policy applies at the run level."""
+        run = PipelineRun(
+            run_id="r1",
+            pipeline_name="example",
+            started_at=NOW + timedelta(seconds=30),
+            completed_at=NOW,
+            status="completed",
+            adapter_name="x",
+            adapter_version="0.1.0",
+        )
+        assert run.completed_at is not None
+        assert run.completed_at < run.started_at
+
+    def test_final_output_is_not_inferred_from_last_step(self) -> None:
+        """Policy: `final_output` is a *separate optional field*. Pipewise
+        does NOT auto-derive it from `steps[-1].outputs`. PLAN.md §4:
+        'Some pipelines have an aggregated final different from the last
+        step. Optional.' Adapters that want inference must populate it
+        explicitly.
+        """
+        run = PipelineRun(
+            run_id="r1",
+            pipeline_name="example",
+            started_at=NOW,
+            completed_at=NOW + timedelta(seconds=10),
+            status="completed",
+            steps=[
+                StepExecution(
+                    step_id="last_step",
+                    step_name="Last Step",
+                    started_at=NOW,
+                    completed_at=NOW + timedelta(seconds=5),
+                    status="completed",
+                    outputs={"key": "step-output-data"},
+                ),
+            ],
+            adapter_name="x",
+            adapter_version="0.1.0",
+        )
+        # No auto-inference: `final_output` is None even though steps[-1] has data.
+        assert run.final_output is None
+
+    def test_final_output_explicit_value_preserved(self) -> None:
+        """Adapters that DO populate `final_output` get it back unchanged."""
+        run = PipelineRun(
+            run_id="r1",
+            pipeline_name="example",
+            started_at=NOW,
+            completed_at=NOW + timedelta(seconds=10),
+            status="completed",
+            final_output={"summary": "aggregated", "verdict": "ok"},
+            adapter_name="x",
+            adapter_version="0.1.0",
+        )
+        assert run.final_output == {"summary": "aggregated", "verdict": "ok"}
+
+    def test_pipeline_version_optional_default_none(self) -> None:
+        """Policy: `pipeline_version` is optional. Pipelines without a
+        versioning discipline simply leave it None; PLAN.md §4.5 says
+        it tracks 'semver of the pipeline DEFINITION (your prompts)' —
+        meaningful only if you do version your prompts.
+        """
+        run = PipelineRun(
+            run_id="r1",
+            pipeline_name="example",
+            started_at=NOW,
+            completed_at=NOW + timedelta(seconds=10),
+            status="completed",
+            adapter_name="x",
+            adapter_version="0.1.0",
+        )
+        assert run.pipeline_version is None
+
+    def test_pipeline_version_explicit_value(self) -> None:
+        run = PipelineRun(
+            run_id="r1",
+            pipeline_name="example",
+            pipeline_version="1.2.3",
+            started_at=NOW,
+            completed_at=NOW + timedelta(seconds=10),
+            status="completed",
+            adapter_name="x",
+            adapter_version="0.1.0",
+        )
+        assert run.pipeline_version == "1.2.3"
+
+    def test_error_field_with_failed_status(self) -> None:
+        """Policy: the `error` field is optional and free-form. Adapters
+        record whatever message the source pipeline produced — or None
+        if it didn't capture one. The schema does not constrain content."""
+        step = StepExecution(
+            step_id="x",
+            step_name="X",
+            started_at=NOW,
+            status="failed",
+            error="OOMKilled: pod evicted at 12:00:00 UTC",
+        )
+        assert step.error is not None
+        assert step.error.startswith("OOMKilled")
+
+    def test_error_field_can_be_none_with_failed_status(self) -> None:
+        """A pipeline that crashed before recording an error message is
+        a real case (PLAN.md §7 D11). The schema allows error=None on
+        a failed step."""
+        step = StepExecution(
+            step_id="x",
+            step_name="X",
+            started_at=NOW,
+            status="failed",
+            # error explicitly None
+        )
+        assert step.error is None
+
+    def test_empty_steps_list_serializes_correctly(self) -> None:
+        """A run with no steps (e.g., a pipeline that crashed before
+        starting any step) must serialize cleanly."""
+        import json as _json
+
+        run = PipelineRun(
+            run_id="r1",
+            pipeline_name="example",
+            started_at=NOW,
+            status="failed",
+            adapter_name="x",
+            adapter_version="0.1.0",
+        )
+        serialized = run.model_dump_json()
+        # Verify the JSON shape — empty list, not omitted.
+        parsed = _json.loads(serialized)
+        assert parsed["steps"] == []
+        # And round-trips cleanly.
+        restored = PipelineRun.model_validate_json(serialized)
+        assert restored.steps == []
+
+    def test_totals_are_independent_of_step_values(self) -> None:
+        """Policy: run-level `total_*` fields are NOT auto-summed from
+        step values. Adapters set them explicitly. This lets adapters
+        record values from a source-of-truth (e.g., a billing API)
+        rather than re-summing from imperfect step data."""
+        run = PipelineRun(
+            run_id="r1",
+            pipeline_name="example",
+            started_at=NOW,
+            completed_at=NOW + timedelta(seconds=10),
+            status="completed",
+            steps=[
+                StepExecution(
+                    step_id="s1",
+                    step_name="S1",
+                    started_at=NOW,
+                    completed_at=NOW + timedelta(seconds=1),
+                    status="completed",
+                    cost_usd=1.0,
+                    input_tokens=10,
+                ),
+                StepExecution(
+                    step_id="s2",
+                    step_name="S2",
+                    started_at=NOW,
+                    completed_at=NOW + timedelta(seconds=1),
+                    status="completed",
+                    cost_usd=2.0,
+                    input_tokens=20,
+                ),
+            ],
+            # Run-level totals NOT 3.0 / 30 — adapter records its own truth.
+            total_cost_usd=99.0,
+            total_input_tokens=999,
+            adapter_name="x",
+            adapter_version="0.1.0",
+        )
+        assert run.total_cost_usd == 99.0
+        assert run.total_input_tokens == 999
+
+
 class TestImports:
     """Verify the top-level re-exports work."""
 
