@@ -10,7 +10,11 @@ from pathlib import Path
 import pytest
 
 from pipewise import PipelineRun
-from pipewise.runner.adapter import AdapterError, resolve_adapter
+from pipewise.runner.adapter import (
+    AdapterError,
+    resolve_adapter,
+    resolve_default_scorers,
+)
 
 NOW = datetime(2026, 4, 27, 12, 0, 0, tzinfo=UTC)
 
@@ -95,3 +99,76 @@ class TestResolveAdapter:
         resolved = resolve_adapter("fake_adapter_returns_run")
         run = resolved(Path("/tmp/run_42.json"))
         assert isinstance(run, PipelineRun)
+
+
+class TestResolveDefaultScorers:
+    def test_returns_none_when_adapter_has_no_default_scorers(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _install_module("fake_adapter_no_defaults", {"load_run": lambda p: None})
+        monkeypatch.setitem(
+            sys.modules,
+            "fake_adapter_no_defaults",
+            sys.modules["fake_adapter_no_defaults"],
+        )
+        assert resolve_default_scorers("fake_adapter_no_defaults") is None
+
+    def test_returns_tuple_when_adapter_provides_defaults(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from pipewise.scorers.budget import CostBudgetScorer
+        from pipewise.scorers.exact_match import ExactMatchScorer
+
+        def default_scorers() -> tuple[list[object], list[object]]:
+            return (
+                [ExactMatchScorer(fields=["title"])],
+                [CostBudgetScorer(budget_usd=1.0)],
+            )
+
+        _install_module(
+            "fake_adapter_with_defaults",
+            {"load_run": lambda p: None, "default_scorers": default_scorers},
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "fake_adapter_with_defaults",
+            sys.modules["fake_adapter_with_defaults"],
+        )
+
+        result = resolve_default_scorers("fake_adapter_with_defaults")
+        assert result is not None
+        step_scorers, run_scorers = result
+        assert len(step_scorers) == 1
+        assert len(run_scorers) == 1
+
+    def test_non_callable_default_scorers_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _install_module(
+            "fake_adapter_bad_defaults",
+            {"load_run": lambda p: None, "default_scorers": "not callable"},
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "fake_adapter_bad_defaults",
+            sys.modules["fake_adapter_bad_defaults"],
+        )
+        with pytest.raises(AdapterError, match="not callable"):
+            resolve_default_scorers("fake_adapter_bad_defaults")
+
+    def test_default_scorers_returning_wrong_shape_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _install_module(
+            "fake_adapter_wrong_shape",
+            {"load_run": lambda p: None, "default_scorers": lambda: "not a tuple"},
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "fake_adapter_wrong_shape",
+            sys.modules["fake_adapter_wrong_shape"],
+        )
+        with pytest.raises(AdapterError, match="must return"):
+            resolve_default_scorers("fake_adapter_wrong_shape")
+
+    def test_missing_module_raises(self) -> None:
+        with pytest.raises(AdapterError, match="Could not import adapter"):
+            resolve_default_scorers("zzz_unimported_module_for_default_scorers")
