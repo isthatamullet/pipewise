@@ -175,13 +175,13 @@ class TestEmbeddingSimilarityScorer:
         with pytest.raises(ValueError, match="requires an `expected` step"):
             scorer.score(_step({"text": "x"}))
 
-    def test_lazy_import_raises_clear_error_when_not_installed(self) -> None:
-        # sentence-transformers is not installed in the dev env (only with [embeddings]).
-        # Verify the lazy-load surface raises ImportError with install instructions.
-        assert "sentence_transformers" not in sys.modules or (
-            sys.modules.get("sentence_transformers") is None
-        ), "sentence-transformers should NOT be installed in dev env"
-
+    def test_lazy_import_raises_clear_error_when_not_installed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Block the sentence_transformers import via sys.modules so the lazy-load
+        # path raises ImportError regardless of whether the package is actually
+        # installed locally. Setting the entry to None makes Python raise on import.
+        monkeypatch.setitem(sys.modules, "sentence_transformers", None)
         scorer = EmbeddingSimilarityScorer(field="text")
         with pytest.raises(ImportError, match="embeddings"):
             scorer._load_model()
