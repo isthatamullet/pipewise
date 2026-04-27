@@ -79,6 +79,13 @@ Two production pipelines in different domains, with completely different archite
 
 Adapter links land here once Phase 4 ships.
 
+## Documentation
+
+- [**Schema reference**](docs/schema.md) — `PipelineRun`, `StepExecution`, `ScoreResult`, `EvalReport`. Read this first if you're writing an adapter.
+- [**Adapter guide**](docs/adapter-guide.md) — how to integrate your own pipeline.
+- [`PLAN.md`](PLAN.md) — architecture decisions and the build phase plan.
+- [`POSITIONING.md`](POSITIONING.md) — what pipewise is for, ranked against existing tools.
+
 ## Roadmap
 
 | Phase | Scope | Target |

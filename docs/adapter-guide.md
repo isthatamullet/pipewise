@@ -37,7 +37,10 @@ run = PipelineRun(
 )
 ```
 
-Full schema reference will live at `docs/schema.md` once Phase 1 ships.
+The full schema reference, including field-by-field documentation, the
+schema-level conventions (`extra="forbid"`, `AwareDatetime`, etc.), and two
+worked examples (linear FactSpark-shape and branching resume-shape), lives
+at [**`docs/schema.md`**](schema.md).
 
 ## Reference adapters
 
