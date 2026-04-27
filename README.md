@@ -2,11 +2,66 @@
 
 **Evaluation framework for multi-step LLM pipelines.**
 
-> ⚠️ **Status:** Pre-alpha — under active development toward v1.0. Schema and CLI are not yet stable. Star/watch the repo to follow progress.
+> **Status:** Phase 3 shipped — the CLI (`pipewise eval`, `inspect`, `diff`) works end-to-end against real pipeline data, with 8 built-in scorers and 350+ tests passing. Phase 4 (reference adapters) is in progress; v1.0 target is 6-8 weeks. Schema and CLI surfaces are not yet frozen — pin your install until v1.0. Star/watch to follow progress.
 
 [![CI](https://github.com/isthatamullet/pipewise/actions/workflows/ci.yml/badge.svg)](https://github.com/isthatamullet/pipewise/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+
+---
+
+## Quickstart
+
+Install (no PyPI release yet — local install during pre-v1):
+
+```bash
+git clone https://github.com/isthatamullet/pipewise
+cd pipewise
+uv sync
+```
+
+A pipewise eval needs three things: a **dataset** of `PipelineRun`s (JSONL), an **adapter** module that knows how to load runs for your pipeline, and a **scorer config** (TOML) — or your adapter's defaults. Sketch:
+
+```bash
+# 1. Run scorers across a dataset and write a timestamped report.
+uv run pipewise eval \
+  --dataset path/to/golden.jsonl \
+  --adapter mypipeline.integrations.pipewise.adapter \
+  --scorers path/to/scorers.toml
+
+# Output:
+#   Evaluated 2 run(s) with 1 step scorer(s) + 2 run scorer(s).
+#   Scores: 14/16 passing (2 failing).
+#   Report: pipewise/reports/20260427T103015Z_factspark/report.json
+
+# 2. Diff two reports — exits non-zero if there are regressions.
+uv run pipewise diff \
+  pipewise/reports/<earlier>/report.json \
+  pipewise/reports/<later>/report.json
+
+# 3. Pretty-print a single run for sanity-checking.
+uv run pipewise inspect path/to/run.json
+```
+
+A scorer config is plain TOML — section keys become scorer names, `class` is a dotted import path, the rest are constructor kwargs:
+
+```toml
+[scorers.title-exact]
+class = "pipewise.scorers.exact_match.ExactMatchScorer"
+fields = ["title"]
+
+[scorers.cost-cap]
+class = "pipewise.scorers.budget.CostBudgetScorer"
+budget_usd = 0.50
+on_missing = "skip"
+
+[scorers.summary-quality]
+class = "pipewise.scorers.llm_judge.LlmJudgeScorer"
+rubric = "Is this step's output accurate, concise, and free of hallucinated facts?"
+consensus_n = 3   # majority-vote across 3 judge calls; recommended for CI
+```
+
+See [`docs/scorers.md`](docs/scorers.md) for all 8 built-in scorers and [`docs/adapter-guide.md`](docs/adapter-guide.md) for writing an adapter.
 
 ---
 
@@ -75,10 +130,10 @@ Pipewise core has zero dependencies on either reference pipeline. Each pipeline 
 
 Two production pipelines in different domains, with completely different architectures, are the proof the framework is genuinely pipeline-agnostic:
 
-1. **FactSpark** — 7-step linear-ish news article analysis pipeline (Claude + Gemini), 186+ articles in production
-2. **Resume-tailor** — 7-step branching/conditional pipeline with mixed JSON/Markdown/PDF outputs
+1. **FactSpark** — 7-step linear-ish news article analysis pipeline (Claude + Gemini), 186+ articles in production. A prototype adapter already drives the [Phase 3 end-to-end validation gate](tests/integration/test_phase3_validation_gate.py) against real article data.
+2. **Resume-tailor** — 7-step branching/conditional pipeline with mixed JSON/Markdown/PDF outputs.
 
-Adapter links land here once Phase 4 ships.
+Full adapter links land here once Phase 4 ships.
 
 ## Documentation
 
@@ -87,27 +142,17 @@ Adapter links land here once Phase 4 ships.
 
 ## Roadmap
 
-| Phase | Scope | Target |
+| Phase | Scope | Status |
 |---|---|---|
-| 0 | Repo, scaffolding, CI, docs structure | Week 1 |
-| 1 | `PipelineRun` + `StepExecution` schemas, scorer protocols | Week 1-2 |
-| 2 | Built-in scorers (exact match, JSON schema, numeric tolerance, LLM judge, cost/latency budgets) | Week 2-3 |
-| 3 | `pipewise inspect`, `pipewise eval`, `pipewise diff` CLI | Week 3 |
-| 4 | FactSpark + resume-tailor reference adapters | Week 3-4 |
-| 5 | GitHub Action for PR-comment eval reports | Week 4-5 |
-| 6 | Polish + v1.0 launch | Week 5-6 |
+| 0 | Repo, scaffolding, CI, docs structure | ✅ Shipped |
+| 1 | `PipelineRun` + `StepExecution` schemas, scorer protocols | ✅ Shipped |
+| 2 | 8 built-in scorers (exact match, regex, numeric tolerance, JSON schema, cost / latency budgets, LLM judge, embedding similarity) | ✅ Shipped |
+| 3 | `pipewise inspect`, `pipewise eval`, `pipewise diff` CLI | ✅ Shipped |
+| 4 | FactSpark + resume-tailor reference adapters | In progress |
+| 5 | GitHub Action for PR-comment eval reports | Upcoming |
+| 6 | Polish + v1.0 launch | Upcoming |
 
 Each phase ships incrementally to `main` with tests and CI, with reference-pipeline validation gates at the end of every architectural phase.
-
-## Install
-
-> Not on PyPI yet. Local install during development:
-
-```bash
-git clone https://github.com/isthatamullet/pipewise
-cd pipewise
-uv sync
-```
 
 ## License
 
