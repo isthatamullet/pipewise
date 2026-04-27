@@ -123,7 +123,7 @@ scorer = LlmJudgeScorer(
         "the article. Score 1.0 for accurate, 0.5 for partial, 0.0 for missing."
     ),
     model="claude-sonnet-4-6",   # default
-    consensus_n=1,                # set to 3 in CI for non-determinism mitigation
+    consensus_n=1,                # default — see "Consensus" below before using in CI
     cost_ceiling_usd=5.0,         # per scorer instance; reset_cost() to start fresh
 )
 result = scorer.score(actual_step)
@@ -132,7 +132,7 @@ print(f"${scorer.cumulative_cost_usd:.4f} spent so far")
 
 **Caching:** the rubric + examples are wrapped in a `cache_control` system block, so the first call writes the cache and every subsequent call reads it at ~0.1x the input cost.
 
-**Consensus:** `consensus_n=3` makes three independent judge calls per step; the verdict passes when at least `(n // 2) + 1` agree (majority). Trades cost for noise tolerance.
+**Consensus:** the default `consensus_n=1` is for local exploration and rubric iteration — it's cheap and fast, but a single judge call is **noisy**: the same input and same prompt can produce different verdicts across runs. **For CI or any decision-making use, set `consensus_n=3`** — three independent calls vote, and the verdict passes when at least `(n // 2) + 1` agree (majority of 2/3). The 3x cost (~$0.015-0.09 per step at default model) is the price of reproducibility. Use higher odd values (5, 7) for highest-stakes gates.
 
 **Cost ceiling:** the scorer aborts pre-call once its cumulative spend has met or exceeded `cost_ceiling_usd`. A single call may slightly overshoot. Set to `None` to disable.
 
