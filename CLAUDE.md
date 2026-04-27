@@ -76,6 +76,36 @@ uv run pipewise eval --dataset golden.jsonl --adapter <adapter-name>
 uv run pipewise diff <report1.json> <report2.json>
 ```
 
+## Privacy Conventions
+
+This project keeps maintainer-personal content (career framing, internal
+planning, personal task tracking) outside the public repo via a single
+gitignored private folder at the repo root, plus a gitignored
+`CLAUDE.local.md` sibling to this file. Anything in that folder is
+private and must not be referenced, copied, paraphrased, or staged into
+committed files.
+
+**Rules every Claude session must follow:**
+
+- **Never stage anything from the gitignored private folder** for commit,
+  even with `git add -f`. The folder is gitignored to make accidental
+  staging impossible via `git add .`; respect that.
+- **Never include absolute filesystem paths** that reveal where files
+  live on the maintainer's local machine.
+- **Never paraphrase content from the private folder** into public files.
+  It exists to keep content private; copying it in different words
+  defeats the point.
+- **Run the `privacy-reviewer` subagent** (`.claude/agents/privacy-reviewer.md`)
+  before any commit touching public docs (README, this file, `docs/`, root
+  markdown), and before any force-push.
+- **Don't bypass the pre-commit hook** (`git commit --no-verify`) without
+  explicit user approval AND surfacing what's being bypassed.
+
+The pre-commit and pre-push hooks (in `.git/hooks/`, locally installed)
+are the safety net for accidental staging. The `privacy-reviewer` subagent
+is the safety net for context-aware leaks. A weekly remote sweep agent
+catches anything that slipped through both.
+
 ## Communication Channels
 
 - **GitHub issues** — feature requests, bugs
