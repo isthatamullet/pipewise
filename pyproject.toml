@@ -93,6 +93,14 @@ warn_return_any = true
 module = "tests.*"
 disallow_untyped_defs = false
 
+# `sentence-transformers` is gated behind the `[embeddings]` optional extra,
+# so it's not always present in the environment. The scorer lazy-imports it
+# at call time and surfaces a clear ImportError to users — type-check it as
+# an opaque dependency rather than failing the build when it's not installed.
+[[tool.mypy.overrides]]
+module = "sentence_transformers"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
