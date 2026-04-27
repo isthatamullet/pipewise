@@ -12,10 +12,10 @@
 
 ## Documentation Hierarchy
 
-Read in this order when starting fresh:
-1. **PLAN.md** — architecture, phases, schema, risks/decisions table
-2. **POSITIONING.md** — the canonical pitch (used by README, posts, etc.)
-3. **BACKLOG.md** — deferred items with explicit triggers
+Public docs:
+1. **README.md** — public pitch, install instructions, roadmap
+2. **docs/schema.md** — full schema reference for adapter authors
+3. **docs/adapter-guide.md** — how to integrate your own pipeline
 4. **CLAUDE.local.md** (if present) — local-only working notes
 
 When information conflicts, the most recent doc update wins. Update both source and any derived surfaces (README, etc.).
@@ -26,12 +26,12 @@ These rules are load-bearing for the project's positioning. Violating any of the
 
 - **Adapter pattern is sacred.** `pipewise/` core never imports from any specific pipeline. If you find yourself writing `if pipeline_name == "X"` in core code, stop and refactor.
 - **Adapters live in their pipeline's repo, not in pipewise.** Pipewise's `examples/` directory only links to external adapter implementations.
-- **Pipeline runs are immutable, append-only.** New runs never overwrite old runs. Filenames are timestamped. (See PLAN.md §4.5.)
-- **Pipewise EVALUATES, does not EXECUTE.** Adapters produce `PipelineRun`s; pipewise reads them and runs scorers. Pipeline execution is parked in BACKLOG.md. Don't sneak it in.
+- **Pipeline runs are immutable, append-only.** New runs never overwrite old runs. Filenames are timestamped.
+- **Pipewise EVALUATES, does not EXECUTE.** Adapters produce `PipelineRun`s; pipewise reads them and runs scorers. Pipeline execution is out of scope for v1.
 - **No ChromaDB / no PostgreSQL / no cloud dependency in v1 core.** File-based storage only. Database support is parked.
 - **No telemetry.** Pipewise does not phone home, ever.
 
-## Tech Stack (locked decisions — see PLAN.md §7)
+## Tech Stack (locked decisions)
 
 - **Language:** Python 3.11+
 - **Build:** uv + pyproject.toml

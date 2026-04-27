@@ -1,7 +1,7 @@
 """Phase 1 validation gate (issue #7): can the pipewise schema ingest a real
 resume-tailor run, including the hard-case branching and conditional steps?
 
-Resume-tailor is "the hard case" per PLAN.md §2 — it stresses every part of
+Resume-tailor is the hard case — it stresses every part of
 the abstraction:
 
 - **Optional step 2** (discovery — often skipped). Captured here as
@@ -11,14 +11,14 @@ the abstraction:
 - **Mixed output formats** — steps 1-5 are JSON; step 6 produces Markdown
   (`*_ats_safe.md`); step 7 (Canva export) produces a PDF when it runs at all.
 - **Conditional step 7** — gated by step 5 status. When it doesn't run, it's
-  simply absent from the `steps` list (PLAN.md §4 design decision: "Single
-  PipelineRun is always linear … branches are recorded by which step_id ran").
+  simply absent from the `steps` list (per the schema design: a single
+  PipelineRun is always linear and branches are recorded by which step_id ran).
 
 This is a *prototype* adapter — NOT the full Phase 4 adapter (which will live
 at `tyler/integrations/pipewise/`). Pipewise core has zero runtime dependency
-on the resume pipeline (PLAN.md §3); this test runs locally only.
+on the resume pipeline (per the adapter-pattern rule); this test runs locally only.
 
-Per PLAN.md §6 Phase 1 validation gate:
+Per the Phase 1 validation gate:
     > If both pass: the abstraction is correct. If either fails: redesign
     > before moving on.
 """
@@ -74,7 +74,7 @@ def _build_resume_run() -> PipelineRun:
                 step_name="Discovery",
                 started_at=base + timedelta(seconds=10),
                 # No completed_at: the step never ran. Schema allows None on
-                # `skipped` per PLAN.md §7 D11.
+                # `skipped` per the schema design.
                 status="skipped",
                 metadata={"skip_reason": "step2 file absent — discovery not needed for this role"},
             )
@@ -187,7 +187,7 @@ def test_can_ingest_real_resume_run() -> None:
 
 def test_skipped_step_recorded_correctly() -> None:
     """Step 2 (discovery) was skipped — represented with status='skipped'
-    and no completed_at, per PLAN.md §7 D11."""
+    and no completed_at, per the schema design."""
     run = _build_resume_run()
     skipped = [s for s in run.steps if s.status == "skipped"]
     assert len(skipped) == 1
@@ -196,7 +196,7 @@ def test_skipped_step_recorded_correctly() -> None:
 
 
 def test_step4_branch_captured_via_step_id() -> None:
-    """Branching is recorded by which step_id ran (PLAN.md §4 design decision).
+    """Branching is recorded by which step_id ran (per the schema design).
     Either 'write_resume_chronological' or 'write_resume_hybrid' — never both."""
     run = _build_resume_run()
     step4_ids = {s.step_id for s in run.steps if s.step_id.startswith("write_resume")}
@@ -216,8 +216,8 @@ def test_step6_markdown_output_round_trips() -> None:
 
 def test_step7_absent_when_gated_off() -> None:
     """Step 7 didn't run for this job — it's simply absent from the steps
-    list. PLAN.md §4: 'Single PipelineRun is always linear … branches are
-    recorded by which step_id ran.'"""
+    list. Per the schema design: a single PipelineRun is always linear and
+    branches are recorded by which step_id ran."""
     run = _build_resume_run()
     assert not any(s.step_id == "export_canva" for s in run.steps)
 

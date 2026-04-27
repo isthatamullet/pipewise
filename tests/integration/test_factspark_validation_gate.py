@@ -7,9 +7,9 @@ the schema against real `step1-7.json` files and prove the round-trip works.
 
 Skips automatically when FactSpark's local data isn't available (e.g., on the
 GitHub Actions runner). Pipewise core has zero runtime dependency on FactSpark
-per PLAN.md §3 (the adapter pattern is sacred); this test runs locally only.
+per the adapter-pattern rule; this test runs locally only.
 
-Per PLAN.md §6 Phase 1 validation gate:
+Per the Phase 1 validation gate:
     > If both pass: the abstraction is correct. If either fails: redesign
     > before moving on.
 """
@@ -28,7 +28,7 @@ FACTSPARK_ARTICLES_DIR = Path("/home/user/factspark/articles")
 SAMPLE_ARTICLE_PREFIX = "02242026_bbc_trump_tariffs_supreme_court"
 SECOND_ARTICLE_PREFIX = "02252026_apnews_trump_sotu_fact_check"
 
-# Per PLAN.md §2: 7 steps, all-Claude except step 7 (Gemini for verification).
+# Per the codebase-discovery findings: 7 steps, all-Claude except step 7 (Gemini for verification).
 FACTSPARK_STEP_LINEUP: list[tuple[str, str, str, str]] = [
     ("analyze", "analyze-article", "claude-opus-4-7", "anthropic"),
     ("enhance_entities", "enhance-entities-geographic", "claude-opus-4-7", "anthropic"),
@@ -65,7 +65,7 @@ def _build_factspark_run(article_prefix: str) -> PipelineRun:
                 provider=provider,
                 outputs=outputs,
                 # cost / tokens / latency intentionally None — FactSpark doesn't
-                # track these today (PLAN.md §2; gap to be filled in Phase 4).
+                # track these today ( gap to be filled in Phase 4).
             )
         )
 
@@ -90,7 +90,7 @@ def test_can_ingest_real_factspark_run() -> None:
     assert run.run_id == SAMPLE_ARTICLE_PREFIX
     assert run.pipeline_name == "factspark"
     assert len(run.steps) == 7
-    # Provider mix matches PLAN.md §2: all-Claude except step 7 (Gemini).
+    # Provider mix matches the codebase-discovery findings: all-Claude except step 7 (Gemini).
     assert all(s.provider == "anthropic" for s in run.steps[:-1])
     assert run.steps[-1].provider == "google"
     assert run.steps[-1].model == "gemini-3.1-pro"

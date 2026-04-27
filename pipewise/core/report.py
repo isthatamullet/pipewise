@@ -8,7 +8,7 @@ The JSON shape is intentionally stable and minimal. The Phase 3 CLI
 (`pipewise diff`) and the Phase 5 GitHub Action PR-comment bot both consume
 this schema; breaking the JSON shape post-v1.0 would break both consumers.
 
-Storage layout for reports lives in `PLAN.md` §4.5: each `pipewise eval`
+Storage layout: each `pipewise eval`
 invocation writes to a timestamped directory under `pipewise/reports/`,
 never overwriting prior output.
 """
@@ -50,7 +50,7 @@ class RunEvalResult(BaseModel):
     Provenance fields (`pipeline_name`, `adapter_name`, `adapter_version`)
     duplicate the source `PipelineRun` — they're snapshotted into the report
     so the report stays interpretable even after the source run is moved or
-    archived. (PLAN.md §4.5: runs are immutable / append-only, but reports
+    archived. (Runs are immutable / append-only at the filesystem layer, but reports
     should not depend on the source files still being reachable.)
     """
 

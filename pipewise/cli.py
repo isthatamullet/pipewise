@@ -2,4 +2,4 @@
 
 
 def app() -> None:
-    raise SystemExit("pipewise CLI is not implemented yet — see PLAN.md §6 Phase 3 for scope.")
+    raise SystemExit("pipewise CLI is not implemented yet.")

@@ -64,7 +64,7 @@ Pipewise treats the **pipeline run** as the unit of evaluation, with step-level 
 │  ────────────────────  │  │  ──────────────────    │
 │  Reads step1..7.json   │  │  Reads jobs/<co>/*     │
 │  → PipelineRun         │  │  → PipelineRun         │
-│  Lives IN factspark    │  │  Lives IN tyler        │
+│  Lives IN pipeline 1   │  │  Lives IN pipeline 2   │
 └────────────────────────┘  └────────────────────────┘
 ```
 
@@ -83,8 +83,6 @@ Adapter links land here once Phase 4 ships.
 
 - [**Schema reference**](docs/schema.md) — `PipelineRun`, `StepExecution`, `ScoreResult`, `EvalReport`. Read this first if you're writing an adapter.
 - [**Adapter guide**](docs/adapter-guide.md) — how to integrate your own pipeline.
-- [`PLAN.md`](PLAN.md) — architecture decisions and the build phase plan.
-- [`POSITIONING.md`](POSITIONING.md) — what pipewise is for, ranked against existing tools.
 
 ## Roadmap
 
@@ -98,7 +96,7 @@ Adapter links land here once Phase 4 ships.
 | 5 | GitHub Action for PR-comment eval reports | Week 4-5 |
 | 6 | Polish + v1.0 launch | Week 5-6 |
 
-See `PLAN.md` for full phase detail (in this repo during planning; will move to `docs/` post-Phase 0).
+Each phase ships incrementally to `main` with tests and CI, with reference-pipeline validation gates at the end of every architectural phase.
 
 ## Install
 

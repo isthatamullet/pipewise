@@ -91,7 +91,7 @@ class TestStepExecution:
 
     def test_running_status_rejected(self) -> None:
         # 'running' was dropped in Phase 1 — pipewise EVALUATES completed runs,
-        # not in-flight ones (PLAN.md §7 D8).
+        # not in-flight ones.
         with pytest.raises(ValidationError):
             StepExecution(
                 step_id="x",
@@ -523,7 +523,7 @@ class TestSchemaPolicies:
     """
 
     def test_clock_skew_allowed_step_started_at_after_completed_at(self) -> None:
-        """Policy (PLAN.md §7 D13): the schema does NOT enforce
+        """Policy: the schema does NOT enforce
         `started_at <= completed_at`. Reasoning: clock skew across
         distributed systems / CI runners makes strict ordering a frequent
         false-positive that adapters can't always fix at their layer.
@@ -557,7 +557,7 @@ class TestSchemaPolicies:
 
     def test_final_output_is_not_inferred_from_last_step(self) -> None:
         """Policy: `final_output` is a *separate optional field*. Pipewise
-        does NOT auto-derive it from `steps[-1].outputs`. PLAN.md §4:
+        does NOT auto-derive it from `steps[-1].outputs`. Per the schema design:
         'Some pipelines have an aggregated final different from the last
         step. Optional.' Adapters that want inference must populate it
         explicitly.
@@ -600,7 +600,7 @@ class TestSchemaPolicies:
 
     def test_pipeline_version_optional_default_none(self) -> None:
         """Policy: `pipeline_version` is optional. Pipelines without a
-        versioning discipline simply leave it None; PLAN.md §4.5 says
+        versioning discipline simply leave it None; the storage layer says
         it tracks 'semver of the pipeline DEFINITION (your prompts)' —
         meaningful only if you do version your prompts.
         """
@@ -644,7 +644,7 @@ class TestSchemaPolicies:
 
     def test_error_field_can_be_none_with_failed_status(self) -> None:
         """A pipeline that crashed before recording an error message is
-        a real case (PLAN.md §7 D11). The schema allows error=None on
+        a real case. The schema allows error=None on
         a failed step."""
         step = StepExecution(
             step_id="x",

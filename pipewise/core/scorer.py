@@ -8,7 +8,7 @@ Two flavors:
 - `StepScorer` — operates on a single `StepExecution` (with optional expected)
 - `RunScorer` — operates on an entire `PipelineRun` (e.g., total-cost budget)
 
-Design rationale lives in `PLAN.md` §5.
+Design rationale and the broader scoring contract live in the internal design notes.
 """
 
 from typing import Any, Protocol, runtime_checkable

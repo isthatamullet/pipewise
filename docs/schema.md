@@ -30,7 +30,7 @@ edge encoding, cycle detection) into a flat ordered list. Anything you'd
 want to know about how a run actually unfolded is recoverable from the
 sequence of `step_id`s and statuses.
 
-See [PLAN.md §4](../PLAN.md) for the full design rationale.
+The two worked examples in §7 and §8 below show what this looks like for both a linear pipeline and a branching one.
 
 ---
 
@@ -172,8 +172,7 @@ A scorer MAY ignore `expected` when its scoring logic is self-contained
 ## 6. Schema-level conventions
 
 These conventions apply uniformly across every model. Each has a
-documented rationale recorded in [PLAN.md §7](../PLAN.md) (decisions
-D8 through D14).
+documented rationale below.
 
 ### 6.1 Extension via `metadata`
 
@@ -203,7 +202,7 @@ StepExecution(
 ```
 
 > Why: a v1 schema gets one chance to teach adapter authors the convention.
-> Loud errors do that; silent drops don't. (PLAN.md §7 D8)
+> Loud errors do that; silent drops don't.
 
 ### 6.2 Timezone-aware datetimes required
 
@@ -219,7 +218,7 @@ started_at = datetime.now()      # ❌ ValidationError (naive)
 
 > Why: pipewise data is portable across machines/CI runners and comparable
 > for regression detection; mixed-tz vs. naive datetimes are a known
-> footgun for sorting and subtraction. (PLAN.md §7 D9)
+> footgun for sorting and subtraction.
 
 ### 6.3 Non-negative numerics
 
@@ -239,7 +238,7 @@ If your source pipeline crashed mid-execution and the step's end time is
 unknown, use `status="failed"` with `completed_at=None` (not "running").
 
 > Why: aligns with pipewise's evaluate-not-execute scope. Re-add condition
-> tracked in [BACKLOG.md](../BACKLOG.md). (PLAN.md §7 D10)
+> reconsidered when execution mode lands.
 
 ### 6.5 Terminal-status validators
 
@@ -252,7 +251,7 @@ end time would be worse than honest absence.
 
 > Why: a `"completed"` step without an end time is self-contradictory data;
 > every consumer would have to guard against it. The other terminal states
-> have legitimate end-time-unknown cases. (PLAN.md §7 D11)
+> have legitimate end-time-unknown cases.
 
 ### 6.6 No auto-derivation
 
@@ -267,7 +266,7 @@ from imperfect step data.
 
 > Why: explicit > implicit, and "I summed 7 step costs" lies about the
 > precision of cost data that adapters often only have at run-level granularity.
-> (PLAN.md §7 D14)
+>
 
 ### 6.7 Clock skew tolerated
 
@@ -277,19 +276,19 @@ false-positive. Adapters that want strict ordering can validate at their own
 layer.
 
 > Why: pragmatic — the pain of false positives outweighs the value of
-> catching the rare backwards timestamp. (PLAN.md §7 D13)
+> catching the rare backwards timestamp.
 
 ### 6.8 Mutability and immutability
 
 Models are mutable in-memory. Pipewise does NOT use `frozen=True`.
 
 Persistent immutability is enforced at the *filesystem layer*: the runner
-writes timestamped files that are never overwritten (PLAN.md §4.5). Once
+writes timestamped files that are never overwritten. Once
 a run has been written to disk, it stays exactly as written. This is the
 immutability that matters for regression detection and audit.
 
 > Why: scorers transform / aggregate models in-memory. `frozen=True` would
-> add ceremony with no real failure mode it prevents. (PLAN.md §7 D12)
+> add ceremony with no real failure mode it prevents.
 
 ---
 
@@ -431,7 +430,7 @@ run = PipelineRun(
             },
         ),
         # Step 7 (export_canva) deliberately absent — gated off by step 5's status.
-        # PLAN.md §4: "branches are recorded by which step_id ran;
+        # branches are recorded by which step_id ran;
         # absent steps mean they didn't run."
     ],
     adapter_name="resume-tailor-pipewise-adapter",
@@ -487,4 +486,4 @@ JSON shape is intentionally minimal so it's stable across pipewise releases.
 - [`docs/adapter-guide.md`](adapter-guide.md) — how to build an adapter for *your* pipeline
 - [`tests/integration/test_factspark_validation_gate.py`](../tests/integration/test_factspark_validation_gate.py) — full working linear-pipeline adapter (~80 lines)
 - [`tests/integration/test_resume_validation_gate.py`](../tests/integration/test_resume_validation_gate.py) — full working branching-pipeline adapter
-- [`PLAN.md`](../PLAN.md) §4, §4.5, §7 — design rationale and locked decisions
+

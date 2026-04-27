@@ -9,8 +9,8 @@ by which `step_id` was executed; skipped steps are recorded with
 `status="skipped"`. This keeps the schema small while still expressing both
 linear (FactSpark-shape) and branching (resume-tailor-shape) pipelines.
 
-Design rationale lives in `PLAN.md` §4. Schema-level decisions made during
-Phase 1 implementation (after PLAN.md was written) are recorded in §7.
+Design rationale and locked decisions are tracked in the project's internal
+plan + decisions log.
 
 ## Schema-level conventions worth knowing
 
@@ -24,7 +24,7 @@ Phase 1 implementation (after PLAN.md was written) are recorded in §7.
 - **Append-only / immutable**: not enforced by `frozen=True` on the models
   (scorers need to compute on these structures in-memory). Immutability is
   enforced at the filesystem layer via timestamped, never-overwritten files
-  (PLAN.md §4.5).
+ .
 """
 
 from datetime import datetime
@@ -59,7 +59,7 @@ class StepExecution(BaseModel):
     each step onto this shape. The `inputs` and `outputs` dicts are opaque
     to pipewise — scorers know how to interpret per-pipeline content.
 
-    See `PLAN.md` §4 for design rationale.
+    See the worked examples in this docstring + the schema reference docs.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -126,7 +126,7 @@ class PipelineRun(BaseModel):
     A single run is always a linear sequence of `StepExecution`s, even when
     the underlying pipeline definition is a DAG. Branches and conditional
     steps are captured by which `step_id` actually ran; skips are recorded
-    with `status="skipped"`. See `PLAN.md` §4 for design rationale and
+    with `status="skipped"`. /* doc continued */
     §4.5 for storage / immutability rules.
     """
 
@@ -135,7 +135,7 @@ class PipelineRun(BaseModel):
     run_id: str = Field(min_length=1)
     """Globally unique identifier for this run.
 
-    Used in default filenames (PLAN.md §4.5), so it must produce a sensible
+    Used in default filenames, so it must produce a sensible
     filename slug — adapters typically use a UUID or a human-readable
     composite like `<pipeline>_<input-key>_<timestamp>`.
     """
@@ -170,7 +170,7 @@ class PipelineRun(BaseModel):
 
     adapter_version: str = Field(min_length=1)
     """Version of that adapter — required so a run can always be traced
-    back to the converter that built it (see PLAN.md §4.5)."""
+    back to the converter that built it (see the storage rules)."""
 
     metadata: dict[str, Any] = Field(default_factory=dict)
     """Adapter-specific data that doesn't fit the core fields. Same role
