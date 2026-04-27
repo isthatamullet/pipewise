@@ -28,10 +28,10 @@ Not a release-quality promise — v1.0 remains the launch target.
   - `EmbeddingSimilarityScorer` — cosine similarity between step outputs and expected text. Optional `[embeddings]` extra.
   - `CostBudgetScorer` — run-level cost cap with `on_missing="skip"` for pipelines without per-call usage telemetry.
   - `LatencyBudgetScorer` — run-level latency cap with the same `on_missing` behavior.
-  - `LlmJudgeScorer` — Anthropic-API-backed pairwise judge. Optional `[llm-judge]` extra; excluded from adapter `default_scorers()` by convention (paid API).
+  - `LlmJudgeScorer` — Anthropic-API-backed rubric judge with structured-output parsing, prompt caching on the rubric, and an N-call consensus mode. Optional `[llm-judge]` extra; excluded from adapter `default_scorers()` by convention (paid API).
 - **Runner**:
   - `pipewise.runner.eval.run_eval` — sequential scorer execution across a dataset; scorer exceptions caught and recorded as failed `ScoreResult`s rather than aborting the eval.
-  - `pipewise.runner.report_storage` — timestamped, never-overwritten JSON report files. Same-second collisions raise `FileExistsError`.
+  - `pipewise.runner.storage` — timestamped, never-overwritten JSON report files. Same-second collisions raise `FileExistsError`.
 - **CLI** (`pipewise <command>`):
   - `pipewise inspect <run.json>` — pretty-prints a `PipelineRun`.
   - `pipewise eval --dataset <jsonl> --adapter <module> [--scorers <toml>]` — runs scorers across a dataset of pipeline runs and writes a timestamped report.
