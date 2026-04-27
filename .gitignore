@@ -44,3 +44,6 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Claude Code harness runtime state (not the project-committed agents / commands)
+.claude/scheduled_tasks.lock
