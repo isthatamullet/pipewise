@@ -4,6 +4,7 @@
 
 > ⚠️ **Status:** Pre-alpha — under active development toward v1.0. Schema and CLI are not yet stable. Star/watch the repo to follow progress.
 
+[![CI](https://github.com/isthatamullet/pipewise/actions/workflows/ci.yml/badge.svg)](https://github.com/isthatamullet/pipewise/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
