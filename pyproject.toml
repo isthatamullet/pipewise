@@ -31,6 +31,9 @@ dependencies = [
 embeddings = [
     "sentence-transformers>=2.7",
 ]
+llm-judge = [
+    "anthropic>=0.40",
+]
 
 [project.urls]
 Homepage = "https://pipewise.dev"
