@@ -3,6 +3,11 @@
 > Quick reference for the eight built-in scorers shipped in v1. For the
 > full schema and adapter contract, see [`schema.md`](schema.md) and
 > [`adapter-guide.md`](adapter-guide.md).
+>
+> **`LlmJudgeScorer` is the only scorer that calls a paid API.** Adapter
+> authors should NOT include it in `default_scorers()` — surprise API
+> costs hurt UX for first-time users. Document it as a recommended
+> opt-in; users enable it explicitly via `pipewise eval --scorers <toml>`.
 
 A scorer evaluates one aspect of a step or run. Pipewise ships two protocol shapes:
 
@@ -149,6 +154,8 @@ result = scorer.score(pipeline_run)
 
 When `total_cost_usd` is `None` (the adapter didn't capture it), default behavior is `on_missing="fail"` — silent passing on missing data masks real problems. Override with `on_missing="skip"` for adapters that don't track cost.
 
+> **Cost and latency data unavailable for Claude-Code-orchestrated pipelines.** Pipelines whose steps run as Claude Code agents (or any tool that doesn't expose per-call usage to user code) cannot populate `total_cost_usd` or `total_latency_ms` in v1. Pipewise's schema and budget scorers are ready when the data is — but for these pipelines today, set `on_missing="skip"` in the adapter's `default_scorers()`. This telemetry is on the roadmap once Claude Code exposes per-agent usage data; SDK-based reference integrations can demonstrate the feature path independently.
+
 ## `LatencyBudgetScorer`
 
 Run-level scorer. Pass when `run.total_latency_ms <= budget_ms`.
@@ -160,7 +167,7 @@ scorer = LatencyBudgetScorer(budget_ms=30_000)
 result = scorer.score(pipeline_run)
 ```
 
-Same `on_missing` semantics as `CostBudgetScorer`.
+Same `on_missing` semantics as `CostBudgetScorer` — including the cost-and-latency-data-unavailable note above for Claude-Code-orchestrated pipelines.
 
 ---
 
