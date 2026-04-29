@@ -8,7 +8,20 @@ Until v1.0, **minor and patch versions may include breaking changes** — pipewi
 
 ## [Unreleased]
 
-_Phase 5 — GitHub Action for PR-comment eval reports — in progress._
+### Added
+
+- **`pipewise.ci.github_action.render_pr_comment()`** — pure-Python renderer that produces a sticky-comment markdown body from an `EvalReport` (and optional baseline). Reuses `pipewise.runner.diff.compute_diff` rather than reinventing diffing. Output includes a verdict line (`✅` / `⚠️` / `❌` / `🆕`), scorer × step rollup table with right-aligned numeric columns and a signed Δ column, newly-failing-checks `<details>` block when regressions exist, full per-case `<details>`, and a footer with the short SHA + pipewise version. (#40)
+- **`pipewise.ci.__main__`** — CLI entry point invoked via `python -m pipewise.ci`. Renders a PR-comment markdown body from `--report <path>` (and optional `--baseline <path>`) and writes it to `--output <path>`. This is the invocation boundary the `pipewise-eval` GitHub Action shells out to. (#40, #41)
+- **`pipewise-eval` composite GitHub Action** at `.github/actions/pipewise-eval/` — reusable workflow step that consumes a pre-built `EvalReport` JSON artifact, renders it via `python -m pipewise.ci`, and posts/updates a sticky PR comment keyed by adapter name. Artifact-input-only by design (preserves the EVALUATES-not-EXECUTES non-negotiable). Multi-adapter repos call it once per adapter; each adapter gets its own sticky comment. Silent fallback to absolute values when the baseline artifact is missing. Installs pipewise into an isolated venv at `${RUNNER_TEMP}/pipewise-venv` to avoid clobbering the user's workflow Python environment. (#41)
+- **`docs/ci-integration.md`** — adopter walkthrough for wiring `pipewise-eval` into a repository's CI. Covers the two-step pattern (eval → comment), baseline strategy with long-retention artifacts, multi-adapter support, comment-format walkthrough, a worked example using FactSpark, and a troubleshooting section including the `dawidd6/action-download-artifact` `continue-on-error` requirement and the `git revert`-on-single-commit-PR path-filter edge case. (#42, #43, #44)
+- **`CODE_OF_CONDUCT.md`** — Contributor Covenant 2.1, drop-in template with `hello@pipewise.dev` as the enforcement contact. (#46)
+- **`SECURITY.md`** — vulnerability reporting policy. Leads with GitHub Security Advisories as the preferred private channel; email fallback to `security@pipewise.dev`. Pre-1.0 supported-versions stance, best-effort response timeline (acknowledgment within 2 business days, initial assessment within 5), brief coordinated-disclosure process, and an explicit out-of-scope section. (#48)
+
+### Changed
+
+- **`README.md`** — Phase 5 status updated to shipped (status banner + roadmap table) (#50); documentation index now links to `docs/scorers.md` and `docs/ci-integration.md` (#42); Contributing section now links to `CODE_OF_CONDUCT.md` (#46).
+- **`CONTRIBUTING.md`** — Code of Conduct section migrated from an inline paragraph to a link to the formal `CODE_OF_CONDUCT.md`; reporting contact updated to `hello@pipewise.dev`. (#46)
+- **`pyproject.toml`** — author email migrated from the maintainer's personal gmail to project-bounded `hello@pipewise.dev` (Workspace alias). Affects published PyPI metadata when pipewise releases. (#46)
 
 ## [0.0.1] — 2026-04-27
 
