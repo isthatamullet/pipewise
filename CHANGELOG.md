@@ -19,7 +19,7 @@ Until v1.0, **minor and patch versions may include breaking changes** — pipewi
 
 ### Changed
 
-- **`README.md`** — Phase 5 status updated to shipped; documentation index now links to `docs/scorers.md` and `docs/ci-integration.md`; Contributing section now links to `CODE_OF_CONDUCT.md`. (#42, #46)
+- **`README.md`** — Phase 5 status updated to shipped (status banner + roadmap table) (#50); documentation index now links to `docs/scorers.md` and `docs/ci-integration.md` (#42); Contributing section now links to `CODE_OF_CONDUCT.md` (#46).
 - **`CONTRIBUTING.md`** — Code of Conduct section migrated from an inline paragraph to a link to the formal `CODE_OF_CONDUCT.md`; reporting contact updated to `hello@pipewise.dev`. (#46)
 - **`pyproject.toml`** — author email migrated from the maintainer's personal gmail to project-bounded `hello@pipewise.dev` (Workspace alias). Affects published PyPI metadata when pipewise releases. (#46)
 
