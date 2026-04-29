@@ -372,6 +372,164 @@ class TestStructure:
         assert "_No runs in this report._" in out
 
 
+# ─── Floating-point precision robustness ─────────────────────────────────────
+
+
+class TestFloatingPointPrecision:
+    def test_tiny_precision_error_renders_as_unchanged_dash(self) -> None:
+        # Realistic scenario: an average of 0.7 + 0.7 + 0.7 / 3 vs 2.1 / 3
+        # produces a microscopic precision delta. The cell should still
+        # render the em-dash "no change" placeholder, not "+0.00 🟢".
+        baseline = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[_step_entry("step", "Scorer", 0.7, True)],
+                ),
+                _run(
+                    run_id="r2",
+                    step_scores=[_step_entry("step", "Scorer", 0.7, True)],
+                ),
+                _run(
+                    run_id="r3",
+                    step_scores=[_step_entry("step", "Scorer", 0.7, True)],
+                ),
+            ]
+        )
+        # Same logical average, written as 2.1/3 (introduces precision noise).
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[_step_entry("step", "Scorer", 0.1, True)],
+                ),
+                _run(
+                    run_id="r2",
+                    step_scores=[_step_entry("step", "Scorer", 1.0, True)],
+                ),
+                _run(
+                    run_id="r3",
+                    step_scores=[_step_entry("step", "Scorer", 1.0, True)],
+                ),
+            ]
+        )
+        # Sanity: the average difference IS exactly 0 in arithmetic but may
+        # not be exactly 0 in float. Average baseline = 0.7; average report =
+        # (0.1 + 1.0 + 1.0) / 3 = 0.7 (with possible precision noise).
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        # The Δ cell should be "—" (not "+0.00 🟢" or similar).
+        assert "+0.00 🟢" not in out
+        assert "-0.00 🔴" not in out
+
+
+# ─── Verdict accuracy: score deltas without flips ────────────────────────────
+
+
+class TestScoreDeltasWithoutFlips:
+    def _score_delta_pair(self) -> tuple[EvalReport, EvalReport]:
+        # Both reports pass; scores moved but pass status didn't flip.
+        baseline = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[_step_entry("step", "Scorer", 0.85, True)],
+                )
+            ]
+        )
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[_step_entry("step", "Scorer", 0.92, True)],
+                )
+            ]
+        )
+        return baseline, report
+
+    def test_verdict_says_no_regressions_not_no_change(self) -> None:
+        baseline, report = self._score_delta_pair()
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        # Score moved up but didn't flip pass status. We don't claim "no
+        # change" because the rollup table will show a non-zero Δ.
+        assert "✅ All scorers passing · no regressions vs main" in out
+        assert "no change vs main" not in out
+
+    def test_extras_footnote_lists_score_deltas(self) -> None:
+        baseline, report = self._score_delta_pair()
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        assert "_Plus: 1 score delta._" in out
+
+
+class TestExtrasFootnote:
+    def test_lists_newly_added_scorers(self) -> None:
+        baseline = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[_step_entry("step", "ExactMatch", 1.0, True)],
+                )
+            ]
+        )
+        # Same step, but a new scorer joins.
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("step", "ExactMatch", 1.0, True),
+                        _step_entry("step", "Regex", 1.0, True),
+                    ],
+                )
+            ]
+        )
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        assert "_Plus: 1 newly added._" in out
+
+    def test_lists_removed_scorers(self) -> None:
+        baseline = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("step", "ExactMatch", 1.0, True),
+                        _step_entry("step", "Regex", 1.0, True),
+                    ],
+                )
+            ]
+        )
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[_step_entry("step", "ExactMatch", 1.0, True)],
+                )
+            ]
+        )
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        assert "_Plus: 1 removed._" in out
+
+    def test_no_footnote_when_categories_are_empty(self) -> None:
+        # The TestPassingNoChange fixture has no extras; the footnote should
+        # be absent.
+        run_steps = [_step_entry("extract", "ExactMatch", 0.94, True)]
+        baseline = _report(runs=[_run(run_id="r1", step_scores=run_steps)])
+        report = _report(runs=[_run(run_id="r1", step_scores=list(run_steps))])
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        assert "_Plus:" not in out
+
+
 # ─── Failing-but-not-regressed (warning) state ───────────────────────────────
 
 

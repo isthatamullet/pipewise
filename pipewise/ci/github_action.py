@@ -97,6 +97,18 @@ def _render_verdict_line(report: EvalReport, diff: ReportDiff | None) -> str:
         plural = "" if improvements == 1 else "s"
         return f"✅ All scorers passing · {improvements} improvement{plural} 🟢"
 
+    # At this point: no regressions, no failing, no improvements. But scores
+    # may have moved (`score_deltas`), or scorers/runs may have been added or
+    # removed. Any of those means "no regressions" is honest; "no change" is
+    # a lie. Reserve "no change vs main" for the truly identical case.
+    if (
+        diff.score_deltas
+        or diff.absent_in_a
+        or diff.absent_in_b
+        or diff.runs_a_only
+        or diff.runs_b_only
+    ):
+        return "✅ All scorers passing · no regressions vs main"
     return "✅ All scorers passing · no change vs main"
 
 
@@ -131,13 +143,19 @@ def _format_score(score: float | None) -> str:
     return f"{score:.2f}"
 
 
+# Epsilon for treating floating-point deltas as "no change". Scores live in
+# [0.0, 1.0] and the rendered cell shows two decimal places, so anything
+# smaller than 1e-6 is precision noise from averaging — not a real signal.
+_DELTA_EPSILON = 1e-6
+
+
 def _format_delta(baseline: float | None, current: float | None) -> str:
     if current is None:
         return "removed"
     if baseline is None:
         return "newly added"
     delta = current - baseline
-    if delta == 0.0:
+    if abs(delta) < _DELTA_EPSILON:
         return "—"
     sign = "+" if delta > 0 else ""
     emoji = "🟢" if delta > 0 else "🔴"
@@ -189,14 +207,42 @@ def _count_unchanged(report: EvalReport, baseline: EvalReport, diff: ReportDiff)
     return max(matched_in_report - changed, 0)
 
 
+def _format_extras_line(diff: ReportDiff) -> str | None:
+    """Footnote listing diff categories not surfaced in the main counts row.
+
+    The main row tracks regressions / improvements / unchanged (strict pass-
+    fail framing). Score-only deltas, newly-added scorers, and removed
+    scorers are real changes too — without surfacing them, the displayed
+    counts won't sum to the number of rows in the rollup table when those
+    categories are non-empty. Returns `None` when nothing to report.
+    """
+    extras: list[str] = []
+    if diff.score_deltas:
+        n = len(diff.score_deltas)
+        extras.append(f"{n} score delta{'' if n == 1 else 's'}")
+    if diff.absent_in_a:
+        n = len(diff.absent_in_a)
+        extras.append(f"{n} newly added")
+    if diff.absent_in_b:
+        n = len(diff.absent_in_b)
+        extras.append(f"{n} removed")
+    if not extras:
+        return None
+    return f"_Plus: {', '.join(extras)}._"
+
+
 def _render_counts(report: EvalReport, baseline: EvalReport | None, diff: ReportDiff) -> str:
     assert baseline is not None  # narrowed by call site
     unchanged = _count_unchanged(report, baseline, diff)
-    return (
+    line = (
         f"**Regressions:** {len(diff.regressions)} 🔴 · "
         f"**Improvements:** {len(diff.improvements)} 🟢 · "
         f"**Unchanged:** {unchanged}"
     )
+    extras = _format_extras_line(diff)
+    if extras is not None:
+        line += f"\n\n{extras}"
+    return line
 
 
 # ─── Newly-failing checks detail ─────────────────────────────────────────────
