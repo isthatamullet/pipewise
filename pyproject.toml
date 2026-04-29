@@ -79,6 +79,14 @@ ignore = [
     "E501",  # line too long (handled by formatter)
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# `pipewise/ci/github_action.py` renders user-facing markdown that uses `×`
+# (multiplication sign) intentionally for the "Scorer × Step" matrix label —
+# matches typography conventions in similar PR-comment bots (Braintrust,
+# Codecov). Allow it in this module and its tests.
+"pipewise/ci/github_action.py" = ["RUF001", "RUF002"]
+"tests/ci/test_github_action.py" = ["RUF001"]
+
 [tool.ruff.format]
 quote-style = "double"
 
