@@ -47,8 +47,8 @@ holidays, or extended absences may be longer.
 
 | Stage              | Target                                                      |
 |--------------------|-------------------------------------------------------------|
-| Acknowledgment     | within 5 business days                                      |
-| Initial assessment | within 10 business days                                     |
+| Acknowledgment     | within 2 business days                                      |
+| Initial assessment | within 5 business days                                      |
 | Fix or mitigation  | depends on severity; communicated as part of the assessment |
 
 We may ship a mitigation or workaround before a complete fix is available
@@ -83,9 +83,12 @@ this policy. They are still welcome as bug reports via standard GitHub issues:
 ## Why This Policy Is Brief
 
 Pipewise is a pure evaluation library — it reads `PipelineRun` JSON, runs
-scorers, and writes reports. It does not execute user code, run untrusted
-network requests, persist secrets, or expose remote endpoints. The trust
-boundary is correspondingly narrow, so this policy is correspondingly short.
-If pipewise's surface expands in a way that warrants a more detailed trust
-model (e.g., a hosted service, a sandboxed scorer execution mode), this
-document will expand with it.
+scorers, and writes reports. It does not persist secrets, expose remote
+endpoints, or execute arbitrary scripts outside of its configured scorers.
+Configured scorers are explicitly wired in by the adopter (via TOML config)
+and run with the adopter's own privileges; the `LlmJudgeScorer` makes
+outbound HTTPS requests to the LLM provider the adopter has configured. The
+trust boundary is correspondingly narrow, so this policy is correspondingly
+short. If pipewise's surface expands in a way that warrants a more detailed
+trust model (e.g., a hosted service, a sandboxed scorer execution mode),
+this document will expand with it.
