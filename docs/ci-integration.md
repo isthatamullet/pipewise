@@ -109,12 +109,18 @@ jobs:
           path: ./report
 
       - name: Download baseline report from main
+        # See "Silent baseline fallback" below — `continue-on-error: true`
+        # is the catch-all that keeps the comment job running when the
+        # baseline workflow has never run, has no artifacts yet, or
+        # otherwise can't be reached. The pipewise-eval action then
+        # silently falls back to absolute-values rendering.
+        continue-on-error: true
         uses: dawidd6/action-download-artifact@v8
         with:
           workflow: pipewise-baseline.yml
           name: pipewise-baseline-my-pipeline
           path: ./baseline
-          if_no_artifact_found: warn  # silent fallback when none exists yet
+          if_no_artifact_found: warn
 
       - uses: isthatamullet/pipewise/.github/actions/pipewise-eval@main
         with:
@@ -199,6 +205,8 @@ Common operational scenarios where this kicks in:
 - The PR was opened from a fork without access to the baseline artifact
 
 In all of these, the action *still* posts a useful comment showing what your PR's eval looks like in absolute terms. No silent failure.
+
+> **Important: use `continue-on-error: true` on the baseline-download step.** `dawidd6/action-download-artifact`'s `if_no_artifact_found: warn` only handles "workflow exists but has no matching artifact" — it does NOT handle "workflow has never run", which 404s on the underlying GitHub API. Both cases land in the same operational state ("no baseline available"), so wrapping the step with `continue-on-error: true` is the simpler catch-all. When the download step fails, the `./baseline` directory just stays empty, and the pipewise-eval action's silent-baseline-fallback behavior takes over.
 
 ---
 
