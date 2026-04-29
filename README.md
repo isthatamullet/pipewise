@@ -166,6 +166,78 @@ Full adapter links land here once Phase 4 ships.
 
 Each phase ships incrementally to `main` with tests and CI, with reference-pipeline validation gates at the end of every architectural phase.
 
+## Versioning
+
+Pipewise follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+### Pre-1.0 (current)
+
+While pipewise is on `0.x`, **any release may include breaking changes**. This is the standard SemVer convention for pre-stable software. Pin tightly:
+
+```toml
+# Pin to a specific patch version pre-1.0:
+pipewise = "==0.1.2"
+
+# Or pin to a minor range if you accept patch-level changes:
+pipewise = ">=0.1,<0.2"
+```
+
+The schema, CLI, and scorer protocols are still settling. v1.0 will lock them in; until then, expect occasional breakage and pin accordingly.
+
+### Post-1.0 (planned)
+
+Once pipewise reaches v1.0, the following stability commitments apply:
+
+- **MAJOR** bumps (1.x → 2.x) — may include breaking changes to any public API. We commit to **at most one major bump every 12 months** so adopters have a predictable upgrade cadence.
+- **MINOR** bumps (1.0 → 1.1) — additive only. New features, new optional fields, new scorers, new CLI flags. Existing public API stays source-compatible.
+- **PATCH** bumps (1.0.0 → 1.0.1) — bug fixes only.
+
+### What counts as the "public API"
+
+Stable across MINOR bumps post-1.0:
+
+- The `pipewise.PipelineRun`, `pipewise.StepExecution`, `pipewise.ScoreResult`, and `pipewise.EvalReport` Pydantic models, including all field names and types
+- The `pipewise.StepScorer` and `pipewise.RunScorer` Protocol signatures
+- All built-in scorers' constructor signatures and documented behavior
+- All `pipewise <command>` CLI commands and their documented flags
+- The **`EvalReport` JSON schema** written by `pipewise eval` (CI workflows depending on this format will not break across minor versions — see "Schema stability" below)
+- The adapter contract: `load_run(path) -> PipelineRun` and `default_scorers() -> tuple[list[StepScorer], list[RunScorer]]`
+
+NOT part of the public API (may change in any release):
+
+- Anything under `pipewise._*` or with a name starting with an underscore
+- The internal scorer-execution pipeline (how scorers are dispatched, what order they run in, etc. — only the protocols and built-in behavior are stable contracts)
+- Exact text of error messages
+- The `__repr__` output of any class
+- The `metadata: dict[str, Any]` extension field on schema models — adapters may put anything there, but pipewise makes no surface promises about how it's exposed
+
+### Schema stability (for adapter authors)
+
+The Pydantic schema is the load-bearing contract for adapter authors. Post-1.0:
+
+- **Adding a new optional field** is allowed in a minor release.
+- **Making a previously optional field required** requires a major bump.
+- **Removing or renaming a field** requires a major bump.
+- **Tightening validation** (e.g., narrowing accepted types) requires a major bump.
+
+If you write an adapter against pipewise v1.x, it will continue to work with pipewise v1.y for any y > x without changes.
+
+### Deprecation policy
+
+When a feature is deprecated post-1.0:
+
+1. A `DeprecationWarning` is added in a minor release, with the warning text pointing to the replacement.
+2. The deprecated feature continues to work for the remaining lifetime of the current major version.
+3. Removal happens in the next major release (≤12 months later).
+
+Practically: anything deprecated in v1.x stays available until v2.0. You always have at least the time between deprecation and the next major bump to migrate, with a 12-month ceiling.
+
+### Python version support
+
+Pipewise targets actively supported Python releases per the [official Python release schedule](https://devguide.python.org/versions/). Currently: **Python 3.11+**.
+
+When a Python version reaches its end-of-life, pipewise drops support for it in the next release (minor pre-1.0, major post-1.0). EOL'd Python versions don't receive security patches, so continuing to support them is a liability for adopters as well as for pipewise.
+
 ## License
 
 [Apache 2.0](LICENSE) — patent-protective, enterprise-friendly, no rug-pulls.
