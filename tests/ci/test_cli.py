@@ -198,12 +198,18 @@ class TestCliInProcess:
         assert rc == 0
         assert output_path.exists()
 
-    def test_invalid_report_json_raises(self, tmp_path: Path) -> None:
+    def test_invalid_report_json_raises_validation_error(self, tmp_path: Path) -> None:
+        # Pydantic raises ValidationError for malformed JSON — that's the
+        # expected failure mode for a corrupt report. Pin the test to that
+        # specific exception so a future change that swallows it (e.g., adds
+        # a generic try/except) fails the test loudly.
+        from pydantic import ValidationError
+
         report_path = tmp_path / "report.json"
         report_path.write_text("not json", encoding="utf-8")
         output_path = tmp_path / "comment.md"
 
-        with pytest.raises(Exception):  # noqa: B017 — pydantic ValidationError or json.JSONDecodeError
+        with pytest.raises(ValidationError):
             cli_main(
                 [
                     "--report",
@@ -216,6 +222,62 @@ class TestCliInProcess:
                     str(output_path),
                 ]
             )
+
+    def test_missing_report_file_returns_nonzero_with_clean_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # CLIs shouldn't dump tracebacks for user-facing input errors —
+        # that's just confusing in CI logs. Verify the missing-file case
+        # gets a clean stderr message + non-zero exit.
+        missing_path = tmp_path / "does-not-exist.json"
+        output_path = tmp_path / "comment.md"
+
+        rc = cli_main(
+            [
+                "--report",
+                str(missing_path),
+                "--adapter-name",
+                "factspark",
+                "--short-sha",
+                "abc",
+                "--output",
+                str(output_path),
+            ]
+        )
+
+        assert rc == 1
+        captured = capsys.readouterr()
+        assert "is not a file" in captured.err
+        assert str(missing_path) in captured.err
+        assert not output_path.exists()
+
+    def test_baseline_pointing_to_directory_falls_back_silently(self, tmp_path: Path) -> None:
+        # `is_file()` rejects directories where `exists()` would accept.
+        # Verify a baseline path that happens to be a directory falls back
+        # to "no baseline" rather than crashing inside read_text().
+        report_path = tmp_path / "report.json"
+        baseline_dir = tmp_path / "baseline-dir"
+        baseline_dir.mkdir()
+        output_path = tmp_path / "comment.md"
+        _write_report(report_path, _build_report())
+
+        rc = cli_main(
+            [
+                "--report",
+                str(report_path),
+                "--baseline",
+                str(baseline_dir),
+                "--adapter-name",
+                "factspark",
+                "--short-sha",
+                "abc",
+                "--output",
+                str(output_path),
+            ]
+        )
+
+        assert rc == 0
+        assert "no baseline" in output_path.read_text(encoding="utf-8")
 
 
 # ─── End-to-end via `python -m pipewise.ci` subprocess ───────────────────────

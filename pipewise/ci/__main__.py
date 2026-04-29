@@ -71,10 +71,22 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
+    if not args.report.is_file():
+        print(
+            f"error: --report path is not a file: {args.report}",
+            file=sys.stderr,
+        )
+        return 1
+
     report = EvalReport.model_validate_json(args.report.read_text(encoding="utf-8"))
 
+    # Baseline is optional. The "path is set but file is missing" case is
+    # treated as "no baseline" rather than an error — the action passes the
+    # download-artifact target path even when no artifact exists. `is_file()`
+    # also rejects directories, which `exists()` would silently accept and
+    # crash on at `read_text()` time with a less obvious traceback.
     baseline: EvalReport | None = None
-    if args.baseline is not None and args.baseline.exists():
+    if args.baseline is not None and args.baseline.is_file():
         baseline = EvalReport.model_validate_json(args.baseline.read_text(encoding="utf-8"))
 
     markdown = render_pr_comment(

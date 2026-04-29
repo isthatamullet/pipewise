@@ -49,23 +49,38 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
-    - name: Install pipewise
+    - name: Install pipewise (in isolated venv)
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}
         ACTION_REF: ${{ github.action_ref }}
       run: |
-        # Install pipewise from whichever ref the action was invoked at.
-        # `github.action_path` resolves to the action's own directory inside
-        # the checked-out repo; the package root is three levels up
-        # (.github/actions/pipewise-eval/ → repo root). Editable install
-        # works for both the in-repo self-test path AND the external-consumer
-        # path (where GitHub fetches the entire pipewise repo into a tmp
-        # location to invoke the action).
+        # Install into a venv under $RUNNER_TEMP rather than the runner's
+        # global Python. Two reasons:
+        #   1. Avoid clobbering pydantic / typer / etc. versions the rest
+        #      of the user's workflow might depend on (the runner's global
+        #      env is shared across all steps in the job).
+        #   2. When the action is called multiple times in the same job —
+        #      e.g., the multi-adapter pattern in the README — the second
+        #      and subsequent calls reuse the venv and skip the install
+        #      step entirely.
+        # `github.action_path` resolves to the action's own directory; the
+        # package root is three levels up (.github/actions/pipewise-eval/
+        # → repo root). Works for both in-repo self-test (action runs from
+        # the same repo it lives in) and external-consumer (GitHub fetches
+        # pipewise into a tmp location at action_ref to invoke the action).
         REPO_ROOT="$(cd "${ACTION_PATH}/../../.." && pwd)"
-        echo "Installing pipewise from ${REPO_ROOT} (action ref: ${ACTION_REF})"
-        python -m pip install --upgrade pip
-        python -m pip install -e "${REPO_ROOT}"
+        VENV="${RUNNER_TEMP}/pipewise-venv"
+
+        if [[ -x "${VENV}/bin/python" ]]; then
+          echo "Reusing existing pipewise venv at ${VENV}"
+        else
+          echo "Installing pipewise from ${REPO_ROOT} (action ref: ${ACTION_REF})"
+          python -m venv "${VENV}"
+          "${VENV}/bin/python" -m pip install --upgrade pip
+          "${VENV}/bin/python" -m pip install "${REPO_ROOT}"
+        fi
+        echo "PIPEWISE_PYTHON=${VENV}/bin/python" >> "$GITHUB_ENV"
 
     - name: Render PR comment markdown
       shell: bash
@@ -91,7 +106,7 @@ runs:
           args+=(--baseline "$BASELINE_PATH")
         fi
 
-        python -m pipewise.ci "${args[@]}"
+        "${PIPEWISE_PYTHON}" -m pipewise.ci "${args[@]}"
         echo "comment-path=${OUTPUT_PATH}" >> "$GITHUB_OUTPUT"
       id: render
 
