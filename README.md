@@ -2,7 +2,7 @@
 
 **Evaluation framework for multi-step LLM pipelines.**
 
-> **Status:** Phase 3 shipped — the CLI (`pipewise eval`, `inspect`, `diff`) works end-to-end against real pipeline data, with 8 built-in scorers and 350+ tests passing. Phase 4 (reference adapters) is in progress; v1.0 target is 6-8 weeks. Schema and CLI surfaces are not yet frozen — pin your install until v1.0. Star/watch to follow progress.
+> **Status:** Phase 4 shipped (reference adapters validate the abstraction across both linear and branching pipeline shapes; v0.0.1 tagged). Phase 5 (CI integration — GitHub Action that posts eval reports as sticky PR comments) is in progress, with 380+ tests passing. v1.0 target is 4-6 weeks. Schema and CLI surfaces are not yet frozen — pin your install until v1.0. Star/watch to follow progress.
 
 [![CI](https://github.com/isthatamullet/pipewise/actions/workflows/ci.yml/badge.svg)](https://github.com/isthatamullet/pipewise/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -149,6 +149,8 @@ Full adapter links land here once Phase 4 ships.
 
 - [**Schema reference**](docs/schema.md) — `PipelineRun`, `StepExecution`, `ScoreResult`, `EvalReport`. Read this first if you're writing an adapter.
 - [**Adapter guide**](docs/adapter-guide.md) — how to integrate your own pipeline.
+- [**Scorer reference**](docs/scorers.md) — the 8 built-in scorers and how to choose between them.
+- [**CI integration**](docs/ci-integration.md) — wire pipewise into your CI to post a sticky eval-report comment on every PR.
 
 ## Roadmap
 
@@ -158,8 +160,8 @@ Full adapter links land here once Phase 4 ships.
 | 1 | `PipelineRun` + `StepExecution` schemas, scorer protocols | ✅ Shipped |
 | 2 | 8 built-in scorers (exact match, regex, numeric tolerance, JSON schema, cost / latency budgets, LLM judge, embedding similarity) | ✅ Shipped |
 | 3 | `pipewise inspect`, `pipewise eval`, `pipewise diff` CLI | ✅ Shipped |
-| 4 | FactSpark + resume-tailor reference adapters | In progress |
-| 5 | GitHub Action for PR-comment eval reports | Upcoming |
+| 4 | FactSpark + resume-tailor reference adapters | ✅ Shipped |
+| 5 | GitHub Action for PR-comment eval reports | In progress |
 | 6 | Polish + v1.0 launch | Upcoming |
 
 Each phase ships incrementally to `main` with tests and CI, with reference-pipeline validation gates at the end of every architectural phase.
