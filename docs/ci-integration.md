@@ -81,7 +81,8 @@ jobs:
           # Your pipeline's secrets — only this job sees them.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          pip install pipewise
+          # Pre-v1.0 / pre-PyPI install — pin to a SHA or tag in CI.
+          pip install git+https://github.com/isthatamullet/pipewise.git@main
           # 1. Run your pipeline against the canonical dataset.
           python -m my_pipeline.run --dataset golden.jsonl --output runs/
 
@@ -108,7 +109,7 @@ jobs:
           path: ./report
 
       - name: Download baseline report from main
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v8
         with:
           workflow: pipewise-baseline.yml
           name: pipewise-baseline-my-pipeline
@@ -122,6 +123,8 @@ jobs:
           adapter-name: my_pipeline_pipewise
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+> **Pin the action and pipewise install in production CI.** Both examples above use `@main` for readability, but main can move under your feet — a breaking change merged upstream would silently flow into your CI. Pin both `pipewise/.github/actions/pipewise-eval@<sha-or-tag>` and `git+https://...@<sha-or-tag>` to a specific commit SHA pre-v1.0, then switch to a release tag once v1.0 ships.
 
 A few details worth understanding:
 
@@ -157,7 +160,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          pip install pipewise
+          # Pre-v1.0 / pre-PyPI install — pin to a SHA or tag in CI.
+          pip install git+https://github.com/isthatamullet/pipewise.git@main
           python -m my_pipeline.run --dataset golden.jsonl --output runs/
           pipewise eval \
             --adapter my_pipeline_pipewise.adapter \
@@ -281,7 +285,15 @@ Until pipewise v1.0 ships, the FactSpark adapter and pipeline live in `factspark
 
 ### Action fails on `pip install pipewise`
 
-- Pre-v1.0, pipewise isn't on PyPI yet. The action installs from source (the same ref it was invoked at) — see [the action's `Install pipewise` step](../.github/actions/pipewise-eval/action.yml). Pin the action to `@main` or a specific SHA pre-v1.0; a release-tag pin will be available once v1.0 ships.
+- Pre-v1.0, pipewise isn't on PyPI yet. Use `pip install git+https://github.com/isthatamullet/pipewise.git@<ref>` instead, where `<ref>` is `main`, a tag, or a specific commit SHA. The action itself installs pipewise the same way internally — see [its `Install pipewise` step](../.github/actions/pipewise-eval/action.yml).
+- Pin the action to a specific commit SHA pre-v1.0 (browse [recent commits](https://github.com/isthatamullet/pipewise/commits/main) for one); switch to a release tag once one exists that includes the action.
+
+### Comment doesn't appear on PRs from forks
+
+- For PRs opened from a fork, GitHub restricts the default `GITHUB_TOKEN` to read-only scopes — the action's `find-comment` and `create-or-update-comment` calls will fail with permission errors. Two ways to handle it:
+  - **`pull_request_target` event** — runs the workflow with full write tokens against the base branch's code. ⚠️ Security caveat: never check out the fork's code in this workflow without careful sandboxing; a malicious fork could steal secrets. Safe pattern: keep the run-and-eval job on `pull_request` (read-only) and the comment-on-pr job on `pull_request_target` reading the artifact produced by the run-and-eval job.
+  - **`workflow_run` event** — runs after the PR's CI completes, has full write access. More complex to wire (requires looking up the original PR number from the workflow run context) but is the conservative default for public repos.
+- Internal-only repos (no fork PRs) can ignore this — the default `GITHUB_TOKEN` has write access for non-fork PRs.
 
 ---
 
