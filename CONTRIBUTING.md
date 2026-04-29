@@ -42,7 +42,7 @@ Before pushing, run the same gates CI runs:
 uv run pytest                    # Test suite (380+ tests)
 uv run ruff format --check       # Formatting (CI fails if not formatted)
 uv run ruff check .              # Lint
-uv run mypy pipewise/            # Type-check
+uv run mypy pipewise/            # Type-check (matches CI's scope — tests/ excluded by design)
 ```
 
 If `ruff format --check` fails, run `uv run ruff format` to auto-fix.
@@ -71,7 +71,7 @@ For larger pieces of phased work, the prefix `Phase N #M:` (e.g., `Phase 5 #36:`
 
 ## Pull request process
 
-1. **Branch from `origin/main`.** Branch names are limited to ≤15 characters per the project's CI naming rules — keep them short and topical (`fix/typo`, `feat/scorer-x`, `docs/quickstart`).
+1. **Branch from `origin/main`.** Branch names are limited to ≤15 characters — a hard constraint where longer names break GitHub Actions container tagging and Docker image naming downstream. Keep them short and topical (`fix/typo`, `feat/scorer`, `docs/quickstart`).
 2. **Open the PR against `main`.** All PRs are squash-merged, so individual commit messages within a branch are absorbed into one tidy commit on main.
 3. **Fill in the PR template.** [`.github/pull_request_template.md`](.github/pull_request_template.md) walks through the checklist items pipewise expects: lint clean, format clean, types pass, tests pass, architectural rules respected.
 4. **Wait for CI to pass.** GitHub Actions runs the full test suite + formatting + lint + type-check on Python 3.11 and 3.12. Both must pass.
