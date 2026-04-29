@@ -33,6 +33,45 @@ A single sticky comment per adapter on every PR, updated in place across pushes:
 
 The verdict line is the most prominent element — reviewers can tell at a glance whether the PR is safe (`✅`), warning (`⚠️`), or breaking (`❌`). The `Δ` column shows signed deltas vs `main` with 🟢/🔴 emoji as the color channel (GitHub markdown strips inline color). Newly-failing checks expand into a `<details>` block with the specific case + scorer + reason. The full per-case table lives in another `<details>` block — collapsed by default so the comment stays scannable.
 
+### Real-world example: regression caught
+
+The example above is illustrative; the snippet below is the actual comment posted by `pipewise-eval` on a Phase 5 #39 validation-gate PR against FactSpark, where one canonical article's `full_article_content` field was deliberately emptied to simulate a pipeline-output regression. The action correctly flagged the single failed scorer, surfaced it in the verdict line, and dropped the offending case into the "Newly failing checks" detail block — exactly the operational signal a reviewer needs to know whether to merge.
+
+```markdown
+<!-- pipewise-eval-report:factspark_pipewise -->
+## Pipewise eval report — factspark_pipewise
+
+❌ 1 regression · was passing on main, failing here
+
+| Scorer × Step | Main | This PR | Δ |
+| :--- | ---: | ---: | ---: |
+| `cost-cap` (run-level) | 1.00 | 1.00 | — |
+| `latency-cap` (run-level) | 1.00 | 1.00 | — |
+| `article-body-present` × `analyze` | 1.00 | 0.67 | -0.33 🔴 |
+| `article-body-present` × `enhance_analytics_ui` | 1.00 | 1.00 | — |
+| `article-body-present` × `enhance_content` | 1.00 | 1.00 | — |
+| `article-body-present` × `enhance_entities` | 1.00 | 1.00 | — |
+| `article-body-present` × `enhance_source` | 1.00 | 1.00 | — |
+| `article-body-present` × `stupid_meter` | 1.00 | 1.00 | — |
+| `article-body-present` × `verify_claims` | 0.00 | 0.00 | — |
+
+**Regressions:** 1 🔴 · **Improvements:** 0 🟢 · **Unchanged:** 26
+
+<details><summary><b>Newly failing checks (1)</b></summary>
+
+- `article-body-present` × `analyze` · run `02242026_bbc_trump_tariffs_supreme_court` — score 1.00 → 0.00 (passed → failed)
+
+</details>
+
+<details><summary>Full report (3 runs · dataset: canonical-runs)</summary>
+…per-case table omitted for brevity…
+</details>
+
+<sub>Updated for `592e250` · pipewise v0.0.1</sub>
+```
+
+The roll-up table averages across all 3 articles in the canonical dataset — the affected article scores 0.00, the other two score 1.00 each, so the average is `2/3 ≈ 0.67`. The "Newly failing checks" block names the specific run, so reviewers can navigate directly to the failing case without scanning the full report.
+
 ---
 
 ## The two-step CI pattern
@@ -290,6 +329,10 @@ Until pipewise v1.0 ships, the FactSpark adapter and pipeline live in `factspark
 ### Comment shows spurious `Δ`s on every push
 
 - Your scorers aren't deterministic. `LlmJudgeScorer` calls produce different results across runs unless you've pinned model temperature, used `consensus_n` aggressively, or are evaluating on cached outputs. The fix is in your pipeline / scorer config, not pipewise.
+
+### A pure `git revert` on a PR doesn't update the comment
+
+- If a PR has only one commit and you push a `git revert` that exactly cancels it, the cumulative diff vs `main` becomes empty — the workflow's `paths:` filter has nothing to match against, so the workflow doesn't run, and the sticky comment isn't updated. This is GitHub Actions behaving correctly: there's nothing meaningful to test. To trigger an update, push a non-trivial change instead of a pure revert (e.g., add a benign whitespace edit somewhere in the path-filter scope).
 
 ### Action fails on `pip install pipewise`
 
