@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [
-    { name = "Tyler Gohr", email = "tyler.gohr@gmail.com" },
+    { name = "Tyler Gohr", email = "hello@pipewise.dev" },
 ]
 keywords = ["llm", "evaluation", "evals", "pipeline", "agents", "ai-infra"]
 classifiers = [
