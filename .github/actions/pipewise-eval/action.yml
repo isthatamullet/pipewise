@@ -1,0 +1,128 @@
+name: 'pipewise-eval'
+description: 'Render a sticky PR comment from a pipewise EvalReport (with optional baseline diff vs main).'
+author: 'isthatamullet'
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  report-path:
+    description: |
+      Path to the EvalReport JSON for this PR's pipeline run. Typically
+      produced upstream by `pipewise eval` and uploaded as a workflow
+      artifact, then downloaded by the calling workflow before this step.
+    required: true
+  baseline-report-path:
+    description: |
+      Path to the baseline EvalReport JSON (typically the most recent
+      report from main). If the path is omitted OR the file does not
+      exist on disk, the rendered comment shows absolute values with no
+      Δ column. Silent fallback is intentional — baselines may be absent
+      on the first PR for a new repo or after artifact retention expires;
+      the action should still produce a useful comment.
+    required: false
+    default: ''
+  adapter-name:
+    description: |
+      Adapter package name (e.g. `factspark_pipewise`). Used as the
+      sticky-comment marker key so multi-adapter repos can post one
+      comment per adapter without clobbering. Also shown in the comment
+      header.
+    required: true
+  github-token:
+    description: |
+      A token with `pull-requests: write` permission. The default
+      `GITHUB_TOKEN` is sufficient for most cases. The token is used to
+      find an existing pipewise eval comment (matched by the sticky
+      marker) and create or update it.
+    required: true
+  python-version:
+    description: 'Python version used to run the renderer.'
+    required: false
+    default: '3.11'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install pipewise (in isolated venv)
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: |
+        # Install into a venv under $RUNNER_TEMP rather than the runner's
+        # global Python. Two reasons:
+        #   1. Avoid clobbering pydantic / typer / etc. versions the rest
+        #      of the user's workflow might depend on (the runner's global
+        #      env is shared across all steps in the job).
+        #   2. When the action is called multiple times in the same job —
+        #      e.g., the multi-adapter pattern in the README — the second
+        #      and subsequent calls reuse the venv and skip the install
+        #      step entirely.
+        # `github.action_path` resolves to the action's own directory; the
+        # package root is three levels up (.github/actions/pipewise-eval/
+        # → repo root). Works for both in-repo self-test (action runs from
+        # the same repo it lives in) and external-consumer (GitHub fetches
+        # pipewise into a tmp location at action_ref to invoke the action).
+        REPO_ROOT="$(cd "${ACTION_PATH}/../../.." && pwd)"
+        VENV="${RUNNER_TEMP}/pipewise-venv"
+
+        if [[ -x "${VENV}/bin/python" ]]; then
+          echo "Reusing existing pipewise venv at ${VENV}"
+        else
+          echo "Installing pipewise from ${REPO_ROOT} (action ref: ${ACTION_REF})"
+          python -m venv "${VENV}"
+          "${VENV}/bin/python" -m pip install --upgrade pip
+          "${VENV}/bin/python" -m pip install "${REPO_ROOT}"
+        fi
+        echo "PIPEWISE_PYTHON=${VENV}/bin/python" >> "$GITHUB_ENV"
+
+    - name: Render PR comment markdown
+      shell: bash
+      env:
+        REPORT_PATH: ${{ inputs.report-path }}
+        BASELINE_PATH: ${{ inputs.baseline-report-path }}
+        ADAPTER_NAME: ${{ inputs.adapter-name }}
+        # Use the PR head SHA, not GITHUB_SHA — for `pull_request` events
+        # GITHUB_SHA points at the temporary merge commit, which isn't the
+        # commit the reviewer actually pushed.
+        HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      run: |
+        SHORT_SHA="${HEAD_SHA:0:7}"
+        OUTPUT_PATH="${RUNNER_TEMP}/pipewise-comment.md"
+
+        args=(
+          --report "$REPORT_PATH"
+          --adapter-name "$ADAPTER_NAME"
+          --short-sha "$SHORT_SHA"
+          --output "$OUTPUT_PATH"
+        )
+        if [[ -n "$BASELINE_PATH" ]]; then
+          args+=(--baseline "$BASELINE_PATH")
+        fi
+
+        "${PIPEWISE_PYTHON}" -m pipewise.ci "${args[@]}"
+        echo "comment-path=${OUTPUT_PATH}" >> "$GITHUB_OUTPUT"
+      id: render
+
+    - name: Find existing pipewise eval comment
+      uses: peter-evans/find-comment@v3
+      id: find-comment
+      with:
+        issue-number: ${{ github.event.pull_request.number }}
+        body-includes: '<!-- pipewise-eval-report:${{ inputs.adapter-name }} -->'
+        token: ${{ inputs.github-token }}
+
+    - name: Create or update PR comment
+      uses: peter-evans/create-or-update-comment@v4
+      with:
+        comment-id: ${{ steps.find-comment.outputs.comment-id }}
+        issue-number: ${{ github.event.pull_request.number }}
+        body-path: ${{ steps.render.outputs.comment-path }}
+        edit-mode: replace
+        token: ${{ inputs.github-token }}
