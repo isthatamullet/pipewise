@@ -172,23 +172,19 @@ Pipewise follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Pre-1.0 (current)
 
-While pipewise is on `0.x`, **any release may include breaking changes**. This is the standard SemVer convention for pre-stable software. Pin tightly:
+While pipewise is on `0.x`, **any release may include breaking changes** — including patch-level releases (`0.1.2` → `0.1.3`). This is the standard SemVer convention for pre-stable software. Pin to an exact version:
 
 ```toml
-# Pin to a specific patch version pre-1.0:
 pipewise = "==0.1.2"
-
-# Or pin to a minor range if you accept patch-level changes:
-pipewise = ">=0.1,<0.2"
 ```
 
-The schema, CLI, and scorer protocols are still settling. v1.0 will lock them in; until then, expect occasional breakage and pin accordingly.
+The schema, CLI, and scorer protocols are still settling. v1.0 will lock them in; until then, exact-version pinning is the only way to guarantee no surprise breakage.
 
 ### Post-1.0 (planned)
 
 Once pipewise reaches v1.0, the following stability commitments apply:
 
-- **MAJOR** bumps (1.x → 2.x) — may include breaking changes to any public API. We commit to **at most one major bump every 12 months** so adopters have a predictable upgrade cadence.
+- **MAJOR** bumps (1.x → 2.x) — may include breaking changes to any public API. Major bumps are reserved for changes that genuinely warrant them; we don't commit to a calendar but expect them to be infrequent.
 - **MINOR** bumps (1.0 → 1.1) — additive only. New features, new optional fields, new scorers, new CLI flags. Existing public API stays source-compatible.
 - **PATCH** bumps (1.0.0 → 1.0.1) — bug fixes only.
 
@@ -201,7 +197,7 @@ Stable across MINOR bumps post-1.0:
 - All built-in scorers' constructor signatures and documented behavior
 - All `pipewise <command>` CLI commands and their documented flags
 - The **`EvalReport` JSON schema** written by `pipewise eval` (CI workflows depending on this format will not break across minor versions — see "Schema stability" below)
-- The adapter contract: `load_run(path) -> PipelineRun` and `default_scorers() -> tuple[list[StepScorer], list[RunScorer]]`
+- The adapter contract: `load_run(path) -> PipelineRun` (required) and `default_scorers() -> tuple[list[StepScorer], list[RunScorer]]` (optional — adapters that omit it just don't ship default-scorer suggestions)
 
 NOT part of the public API (may change in any release):
 
@@ -228,9 +224,9 @@ When a feature is deprecated post-1.0:
 
 1. A `DeprecationWarning` is added in a minor release, with the warning text pointing to the replacement.
 2. The deprecated feature continues to work for the remaining lifetime of the current major version.
-3. Removal happens in the next major release (≤12 months later).
+3. Removal happens in the next major release.
 
-Practically: anything deprecated in v1.x stays available until v2.0. You always have at least the time between deprecation and the next major bump to migrate, with a 12-month ceiling.
+Practically: anything deprecated in v1.x stays available until v2.0. Adopters always have at least the time between deprecation and the next major bump to migrate. We don't commit to a specific calendar for major bumps (see "Post-1.0" above), so deprecation warnings give you visibility but not a fixed timeline.
 
 ### Python version support
 
