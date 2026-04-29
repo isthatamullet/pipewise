@@ -26,7 +26,7 @@ uv run mypy pipewise/
 
 ## Code of conduct
 
-Be excellent to each other. Disagreements about technical decisions are fine and expected; personal attacks are not.
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold it. Report unacceptable behavior to [tyler.gohr@gmail.com](mailto:tyler.gohr@gmail.com).
 
 ## License
 

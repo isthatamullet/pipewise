@@ -173,3 +173,5 @@ Each phase ships incrementally to `main` with tests and CI, with reference-pipel
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). Pre-v1, the project is opinionated and moving fast — bug reports and adapter contributions are welcome; large feature PRs should start with a discussion.
+
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
