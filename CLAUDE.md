@@ -95,9 +95,11 @@ lives in `CLAUDE.local.md`.
   layout. Use `Path.home()` or relative paths in source.
 - **Never paraphrase content from the private folder** into public
   files.
-- **Run a privacy review pass** before any commit touching public
-  docs (README, this file, `docs/`, root markdown), and before any
-  force-push. Specific tooling lives in maintainer-private context.
+- **A privacy review pass is required** (handled by the maintainer)
+  before any commit touching public docs (README, this file, `docs/`,
+  root markdown), and before any force-push. Specific tooling lives
+  in maintainer-private context; external contributors can ignore
+  this rule and rely on maintainer review at PR time.
 - **Don't bypass the pre-commit hook** (`git commit --no-verify`)
   without explicit user approval AND surfacing what's being bypassed.
 

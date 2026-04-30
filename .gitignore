@@ -6,8 +6,9 @@
 CLAUDE.local.md
 
 # Local-only Claude tooling — agents and slash commands kept project-local
-# but private (sibling to CLAUDE.local.md pattern). Public-facing review
-# practices live in SECURITY.md / CODE_OF_CONDUCT.md, not in tooling files.
+# but private (sibling to CLAUDE.local.md pattern). Public-facing
+# security policy and community standards live in SECURITY.md /
+# CODE_OF_CONDUCT.md.
 .claude/agents/
 .claude/commands/
 
