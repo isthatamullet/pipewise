@@ -114,10 +114,10 @@ class TestFormatRun:
             "score": 7,
         }
         out = format_run(_run([_step(outputs=outputs)]), keys=True)
-        assert "article_metadata: dict[3]" in out
-        assert "extracted_claims: list[3]" in out
-        assert "full_article_content: str" in out
-        assert "score: int" in out
+        assert "'article_metadata': dict[3]" in out
+        assert "'extracted_claims': list[3]" in out
+        assert "'full_article_content': str" in out
+        assert "'score': int" in out
         # Values must NOT appear in keys mode.
         assert "BBC" not in out
         assert "lots of text here" not in out
@@ -140,9 +140,22 @@ class TestFormatRun:
     def test_keys_mode_handles_none_and_bool_and_float(self) -> None:
         outputs = {"missing": None, "flag": True, "ratio": 0.42}
         out = format_run(_run([_step(outputs=outputs)]), keys=True)
-        assert "missing: None" in out
-        assert "flag: bool" in out
-        assert "ratio: float" in out
+        assert "'missing': None" in out
+        assert "'flag': bool" in out
+        assert "'ratio': float" in out
+
+    def test_keys_mode_handles_set_and_tuple(self) -> None:
+        outputs = {"tags": {"a", "b", "c"}, "coords": (1, 2)}
+        out = format_run(_run([_step(outputs=outputs)]), keys=True)
+        assert "'tags': set[3]" in out
+        assert "'coords': tuple[2]" in out
+
+    def test_keys_mode_quotes_keys_with_special_characters(self) -> None:
+        # Keys containing spaces/colons/special chars must render unambiguously.
+        outputs = {"key with space": 1, "has:colon": 2}
+        out = format_run(_run([_step(outputs=outputs)]), keys=True)
+        assert "'key with space': int" in out
+        assert "'has:colon': int" in out
 
     def test_keys_and_full_together_raise(self) -> None:
         with pytest.raises(ValueError, match="mutually exclusive"):
@@ -221,9 +234,9 @@ class TestInspectCommand:
         result = runner.invoke(app, ["inspect", str(run_path), "--keys"])
 
         assert result.exit_code == 0, result.stdout
-        assert "article_metadata: dict[3]" in result.stdout
-        assert "claims: list[2]" in result.stdout
-        assert "score: int" in result.stdout
+        assert "'article_metadata': dict[3]" in result.stdout
+        assert "'claims': list[2]" in result.stdout
+        assert "'score': int" in result.stdout
 
     def test_inspect_keys_and_full_together_is_clear_error(self, tmp_path: Path) -> None:
         run = _run([_step()])

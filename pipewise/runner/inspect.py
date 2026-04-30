@@ -30,9 +30,9 @@ def _truncate(value: Any, limit: int = _DEFAULT_TRUNCATE_AT) -> str:
 def _summarize_value(value: Any) -> str:
     """One-token type/size summary for keys-mode rendering.
 
-    `dict[N]` / `list[N]` / `tuple[N]` carry the container length; primitives
-    render as their type name; `None` renders as `None`; anything unrecognized
-    falls back to the class name.
+    `dict[N]` / `list[N]` / `tuple[N]` / `set[N]` carry the container length;
+    primitives render as their type name; `None` renders as `None`; anything
+    unrecognized falls back to the class name.
     """
     if value is None:
         return "None"
@@ -50,20 +50,24 @@ def _summarize_value(value: Any) -> str:
         return f"list[{len(value)}]"
     if isinstance(value, tuple):
         return f"tuple[{len(value)}]"
+    if isinstance(value, set):
+        return f"set[{len(value)}]"
     return type(value).__name__
 
 
 def _render_kv_keys(d: dict[str, Any]) -> str:
     """Render an inputs/outputs dict as a top-level structural summary.
 
-    Each top-level entry becomes `key: <type-summary>` so adopters can see
-    what a step actually produced without dumping content. One level only —
-    nested dicts/lists are summarized as `dict[N]`/`list[N]` rather than
-    expanded recursively.
+    Each top-level entry becomes `'key': <type-summary>` so adopters can see
+    what a step actually produced without dumping content. Keys are repr'd
+    (matches `_render_kv_dict`) so keys containing spaces, colons, or other
+    special characters render unambiguously. One level only — nested
+    dicts/lists are summarized as `dict[N]`/`list[N]` rather than expanded
+    recursively.
     """
     if not d:
         return "{}"
-    items = [f"{k}: {_summarize_value(v)}" for k, v in d.items()]
+    items = [f"{k!r}: {_summarize_value(v)}" for k, v in d.items()]
     return "{" + ", ".join(items) + "}"
 
 
