@@ -28,6 +28,21 @@ def _run_entry(scorer_name: str, score: float, passed: bool) -> RunScoreEntry:
     return RunScoreEntry(scorer_name=scorer_name, result=_result(score, passed))
 
 
+def _skipped_step_entry(step_id: str, scorer_name: str) -> StepScoreEntry:
+    return StepScoreEntry(
+        step_id=step_id,
+        scorer_name=scorer_name,
+        result=ScoreResult(status="skipped", reasoning="test skip"),
+    )
+
+
+def _skipped_run_entry(scorer_name: str) -> RunScoreEntry:
+    return RunScoreEntry(
+        scorer_name=scorer_name,
+        result=ScoreResult(status="skipped", reasoning="test skip"),
+    )
+
+
 def _run(
     *,
     run_id: str = "run_1",
@@ -556,3 +571,180 @@ class TestFailingButNoRegressions:
             report, baseline=baseline, adapter_name="factspark", short_sha="abc"
         )
         assert "⚠️ 1 failing scorer · no regressions vs main" in out
+
+
+class TestSkippedVerdicts:
+    """Verdict-line cases involving the `skipped` state."""
+
+    def test_all_skipped_says_no_signal(self) -> None:
+        # Every scorer was skipped (e.g., applies_to_step_ids excluded all
+        # steps, or every step had `status="skipped"`). Special-case verdict
+        # so adopters don't read "passing 0/2" as "broken."
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _skipped_step_entry("a", "Regex"),
+                        _skipped_step_entry("b", "Regex"),
+                    ],
+                )
+            ]
+        )
+        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        assert "⏭ All scorers skipped · no signal" in out
+
+    def test_all_skipped_says_no_signal_with_baseline(self) -> None:
+        # Same all-skipped state but with a baseline. Verdict still flags
+        # "no signal" because the diff is meaningless when one side is
+        # entirely skipped.
+        baseline = _report(
+            runs=[_run(run_id="r1", step_scores=[_step_entry("a", "Regex", 1.0, True)])]
+        )
+        report = _report(runs=[_run(run_id="r1", step_scores=[_skipped_step_entry("a", "Regex")])])
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        assert "⏭ All scorers skipped · no signal" in out
+
+    def test_newly_skipped_without_regressions_uses_skipped_verdict(self) -> None:
+        # Some scorers narrowed scope (passed → skipped) but other scorers
+        # still passed. Verdict should call out the scope-narrowing rather
+        # than read "all green."
+        baseline = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("a", "Regex", 1.0, True),
+                        _step_entry("b", "Regex", 1.0, True),
+                    ],
+                )
+            ]
+        )
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("a", "Regex", 1.0, True),
+                        _skipped_step_entry("b", "Regex"),
+                    ],
+                )
+            ]
+        )
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        assert "⏭ 1 newly-skipped scorer · no regressions vs main" in out
+
+    def test_passing_with_skipped_scorers_says_non_skipped_passing(self) -> None:
+        # Mixed state with PR-side skipped entries that aren't transitions
+        # (skipped on both sides). The verdict copy adapts to "non-skipped"
+        # because "all scorers passing" would be a lie.
+        baseline = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("a", "Regex", 1.0, True),
+                        _skipped_step_entry("b", "Regex"),
+                    ],
+                )
+            ]
+        )
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("a", "Regex", 0.95, True),  # score moved
+                        _skipped_step_entry("b", "Regex"),
+                    ],
+                )
+            ]
+        )
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        assert "✅ All non-skipped scorers passing" in out
+
+    def test_no_baseline_surfaces_skipped_count(self) -> None:
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("a", "Regex", 1.0, True),
+                        _skipped_step_entry("b", "Regex"),
+                    ],
+                )
+            ]
+        )
+        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        # 1 passing of 2 total; (1 skipped) annotation included.
+        assert "1/2 scorers passing (1 skipped)" in out
+
+    def test_extras_lists_newly_skipped_and_newly_running(self) -> None:
+        # `passed → skipped` lands in newly_skipped; `skipped → passed` in
+        # newly_running. Both surface in the "Plus:" extras footnote so the
+        # rollup table row count reconciles with main counts.
+        baseline = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("a", "Regex", 1.0, True),  # → skipped
+                        _skipped_step_entry("b", "Regex"),  # → passing
+                    ],
+                )
+            ]
+        )
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _skipped_step_entry("a", "Regex"),
+                        _step_entry("b", "Regex", 1.0, True),
+                    ],
+                )
+            ]
+        )
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        assert "1 newly skipped" in out
+        assert "1 newly running" in out
+
+    def test_unchanged_count_excludes_skipped_transitions(self) -> None:
+        # `passed → skipped` is a transition, not "unchanged."
+        baseline = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("a", "Regex", 1.0, True),
+                        _step_entry("b", "Regex", 1.0, True),
+                        _step_entry("c", "Regex", 1.0, True),
+                    ],
+                )
+            ]
+        )
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[
+                        _step_entry("a", "Regex", 1.0, True),  # unchanged
+                        _step_entry("b", "Regex", 1.0, True),  # unchanged
+                        _skipped_step_entry("c", "Regex"),  # newly_skipped
+                    ],
+                )
+            ]
+        )
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        # Only 2 are truly unchanged; the third is a transition.
+        assert "**Unchanged:** 2" in out
