@@ -183,6 +183,101 @@ uv run python examples/demo_phase2_scorers.py
 
 ---
 
+## Reading `report.json`
+
+Each `pipewise eval` invocation writes a JSON report to `<output-root>/<timestamp>_<dataset-name>/report.json`. The report is the canonical record of what was scored — adopters wiring CI, dashboards, or downstream tooling read this file directly.
+
+### Shape
+
+```json
+{
+  "report_id": "factspark-runs_20260430T051313Z",
+  "generated_at": "2026-04-30T05:13:13Z",
+  "pipewise_version": "0.0.1",
+  "dataset_name": "factspark-runs",
+  "scorer_names": ["article-body-present", "cost-cap", "latency-cap"],
+  "runs": [
+    {
+      "run_id": "02242026_bbc_trump_tariffs_supreme_court",
+      "pipeline_name": "factspark",
+      "adapter_name": "factspark-pipewise-adapter",
+      "adapter_version": "0.1.0",
+      "step_scores": [
+        {
+          "step_id": "analyze",
+          "scorer_name": "article-body-present",
+          "result": {
+            "score": 1.0,
+            "passed": true,
+            "reasoning": null,
+            "metadata": {"pattern": ".{100,}", "mode": "search"}
+          }
+        }
+      ],
+      "run_scores": [
+        {
+          "scorer_name": "cost-cap",
+          "result": {
+            "score": 1.0,
+            "passed": true,
+            "reasoning": "total_cost_usd is None; on_missing='skip' so scorer passes",
+            "metadata": {"missing": true, "budget": 1.0, "unit": "usd"}
+          }
+        }
+      ]
+    }
+  ],
+  "metadata": {}
+}
+```
+
+### Field guide
+
+- **`step_scores` and `run_scores`** (not `step_results` / `run_results`). Each entry is a *scoring*, not a step execution. `StepScoreEntry` carries `step_id` + `scorer_name` + the nested `result`; `RunScoreEntry` carries `scorer_name` + the nested `result`.
+- **The `result` object is nested.** `score`, `passed`, `reasoning`, and `metadata` all live inside `step_scores[].result.*` (or `run_scores[].result.*`). Code that wants `passed` reads `entry.result.passed`.
+- **`metadata` on a result is the scorer's own config** (regex `pattern`, budget `unit`, etc.) — useful for downstream consumers wanting to know how a scorer was parameterized, not for surfacing failure detail. Detail goes in `reasoning`.
+- **`scorer_names` (top-level)** snapshots every scorer that ran across the eval. If a name is in this list but absent from a particular run's entries, the scorer crashed or was filtered out for that run.
+
+### Reports do not carry step outputs
+
+The report tracks *scores*, not the underlying step data. To inspect what a step actually produced, go back to the dataset JSONL row — the same source row that pipewise scored. This keeps reports compact (KB instead of MB on real-pipeline data) and means reports remain meaningful even after the source dataset moves or rotates.
+
+```python
+# Programmatic access — load report + dataset side by side.
+from pipewise.core.report import EvalReport
+from pipewise.runner.dataset import load_dataset
+from pathlib import Path
+
+report = EvalReport.model_validate_json(Path("reports/.../report.json").read_text())
+runs_by_id = {r.run_id: r for r in load_dataset(Path("dataset.jsonl"))}
+
+for run in report.runs:
+    for entry in run.step_scores:
+        if not entry.result.passed:
+            run_data = runs_by_id[run.run_id]
+            step = next(s for s in run_data.steps if s.step_id == entry.step_id)
+            print(f"{run.run_id}/{entry.step_id}: {entry.result.reasoning}")
+            print(f"  outputs: {step.outputs}")  # the actual step data
+```
+
+### Aggregation helpers
+
+`EvalReport` provides built-in helpers so consumers don't reinvent counting:
+
+```python
+report.total_score_count()    # int — every (step_score + run_score) entry
+report.passing_score_count()  # int — count where result.passed is True
+report.failing_score_count()  # int — count where result.passed is False
+report.passing_run_ids()      # list[str] — run_ids where every score passed
+report.failing_run_ids()      # list[str] — run_ids where at least one score failed
+report.find_run(run_id)       # RunEvalResult | None
+report.find_scorer_result(run_id, scorer_name, step_id=None)  # ScoreResult | None
+```
+
+These are methods (not JSON fields) so they don't bloat the file — derive them on read.
+
+---
+
 ## Configuring scorers via TOML
 
 `pipewise eval --scorers <path.toml>` overrides the adapter's `default_scorers()` with a TOML-defined scorer set. Use this when the canonical scorer set differs by environment — e.g., a tighter `LatencyBudgetScorer` budget on CI than on local dev, or opting into `LlmJudgeScorer` only on the baseline workflow where reproducibility matters and the API cost is acceptable.
@@ -313,5 +408,21 @@ pipewise diff --format json baseline/report.json current/report.json
   "absent_in_b": []
 }
 ```
+
+### What `pipewise diff` answers (and what it doesn't)
+
+Diff is keyed on the `(run_id, step_id, scorer_name)` triple. It compares two reports score-by-score for the *same* triple — that's why deterministic re-runs of the same dataset produce `0 regressed, 0 improved, 0 score deltas`.
+
+**Diff is for:**
+
+- "Did re-running this dataset surface a regression?" (e.g., after editing a scorer config or upgrading the pipeline.) Same dataset, two evals.
+- "Did this LLM-judge or other non-deterministic scorer's verdicts move?" (consensus stability checks.)
+- "Did adding a new scorer break previously-passing runs?" (existing runs flagged as score-delta or absent.)
+- The CI gate path — the GitHub Action's PR-comment renderer is built on `compute_diff()`.
+
+**Diff is NOT for:**
+
+- "Is my pipeline producing better outputs over time?" Two reports built from *different* datasets (different `run_id`s) have no key overlap; diff will report 0/0/0 score-deltas with all runs in the `runs_a_only` / `runs_b_only` sets. For trend-over-time analysis, compare aggregate metrics across runs (mean score per scorer, pass rate over the dataset) rather than per-triple deltas.
+- Comparing different *scorer sets* across reports. Scorers absent from one report show up as `absent_in_a` / `absent_in_b`, but the diff doesn't tell you "your scorer set got bigger or smaller" — it tells you which specific triples are unique to each side.
 
 For the automated PR-comment form of the same diff (sticky comment with verdict line + roll-up table), see [`docs/ci-integration.md`](ci-integration.md) — the `pipewise-eval` GitHub Action wraps `compute_diff()` and renders the result as Markdown.
