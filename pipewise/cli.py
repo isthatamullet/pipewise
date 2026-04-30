@@ -12,7 +12,7 @@ The CLI is the wiring layer; logic lives in `pipewise.runner.*`.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from pydantic import ValidationError
@@ -197,10 +197,69 @@ def eval_cmd(
         f"{len(step_scorers)} step scorer(s) + {len(run_scorers)} run scorer(s)."
     )
     typer.echo(f"Scores: {passing}/{total} passing ({failing} failing).")
+
+    # Failure-clustering hint: if multiple failures share the same
+    # (step_id, scorer_name), surface the largest cluster so adopters
+    # can spot patterns without drilling into report.json.
+    if failing > 0:
+        top = _top_failure_cluster(report)
+        if top is not None and top["count"] > 1:
+            label_parts = []
+            if top["step_id"] is not None:
+                label_parts.append(top["step_id"])
+            label_parts.append(top["scorer_name"])
+            label = "/".join(label_parts)
+            line = f"Top failure: {top['count']} of {label}"
+            if top["reasoning"]:
+                reason = top["reasoning"]
+                if len(reason) > 80:
+                    reason = reason[:77] + "..."
+                line = f"{line} ({reason})"
+            typer.echo(line)
+
     typer.echo(f"Report: {report_path}")
 
     if failing > 0:
         raise typer.Exit(code=_REGRESSION_EXIT_CODE)
+
+
+def _top_failure_cluster(report: EvalReport) -> dict[str, Any] | None:
+    """Aggregate failing scores by (step_id, scorer_name); return the
+    largest cluster, or None if there are no failures.
+
+    Returns a dict with `count`, `scorer_name`, `step_id` (or None for
+    run scorers), and `reasoning` (from the first failure in the cluster
+    — failures within a cluster typically share the same reasoning).
+    """
+    clusters: dict[tuple[str | None, str], dict[str, Any]] = {}
+    for run in report.runs:
+        for entry in run.step_scores:
+            if entry.result.passed:
+                continue
+            key: tuple[str | None, str] = (entry.step_id, entry.scorer_name)
+            if key not in clusters:
+                clusters[key] = {
+                    "count": 0,
+                    "scorer_name": entry.scorer_name,
+                    "step_id": entry.step_id,
+                    "reasoning": entry.result.reasoning,
+                }
+            clusters[key]["count"] += 1
+        for run_entry in run.run_scores:
+            if run_entry.result.passed:
+                continue
+            key = (None, run_entry.scorer_name)
+            if key not in clusters:
+                clusters[key] = {
+                    "count": 0,
+                    "scorer_name": run_entry.scorer_name,
+                    "step_id": None,
+                    "reasoning": run_entry.result.reasoning,
+                }
+            clusters[key]["count"] += 1
+    if not clusters:
+        return None
+    return max(clusters.values(), key=lambda c: c["count"])
 
 
 # ─── diff (#26) ───────────────────────────────────────────────────────────────
