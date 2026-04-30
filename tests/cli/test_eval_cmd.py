@@ -259,6 +259,58 @@ class TestEvalCommand:
         combined = result.stdout + (result.stderr or "")
         assert "not found" in combined.lower()
 
+    def test_scorers_toml_works_without_adapter_flag(self, tmp_path: Path) -> None:
+        # When --scorers is supplied, --adapter is no longer required: the
+        # explicit-scorers branch never resolves the adapter.
+        dataset = tmp_path / "ds.jsonl"
+        _write_dataset(dataset, [_make_run("run_1")])
+        config = tmp_path / "scorers.toml"
+        config.write_text(
+            """
+            [scorers.regex-passes]
+            class = "pipewise.scorers.regex.RegexScorer"
+            field = "value"
+            pattern = "^ok$"
+            """
+        )
+        output_root = tmp_path / "reports"
+
+        result = runner.invoke(
+            app,
+            [
+                "eval",
+                "--dataset",
+                str(dataset),
+                "--scorers",
+                str(config),
+                "--output-root",
+                str(output_root),
+            ],
+        )
+
+        assert result.exit_code == 0, result.stdout
+        assert "1/1 passing" in result.stdout
+
+    def test_neither_adapter_nor_scorers_is_clear_error(self, tmp_path: Path) -> None:
+        dataset = tmp_path / "ds.jsonl"
+        _write_dataset(dataset, [_make_run("run_1")])
+
+        result = runner.invoke(
+            app,
+            [
+                "eval",
+                "--dataset",
+                str(dataset),
+                "--output-root",
+                str(tmp_path / "reports"),
+            ],
+        )
+
+        assert result.exit_code == 2
+        combined = result.stdout + (result.stderr or "")
+        assert "--adapter" in combined
+        assert "--scorers" in combined
+
     def test_dataset_name_defaults_to_filename_stem(
         self, tmp_path: Path, adapter_with_defaults: str
     ) -> None:
