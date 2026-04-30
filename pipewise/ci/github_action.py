@@ -76,10 +76,19 @@ def render_pr_comment(
 
 
 def _render_verdict_line(report: EvalReport, diff: ReportDiff | None) -> str:
-    passing = report.passing_score_count()
-    failing = report.failing_score_count()
-    skipped = report.skipped_score_count()
-    total = report.total_score_count()
+    # Single-pass tally — cheaper than four separate calls to
+    # passing_score_count / failing_score_count / skipped_score_count /
+    # total_score_count, each of which materializes `all_results()` again.
+    results = report.all_results()
+    total = len(results)
+    passing = failing = skipped = 0
+    for r in results:
+        if r.status == "passed":
+            passing += 1
+        elif r.status == "failed":
+            failing += 1
+        else:  # skipped
+            skipped += 1
 
     # All-skipped on PR side: no signal regardless of baseline. The eval ran
     # but every scorer short-circuited (e.g., applies_to_step_ids excluded
@@ -242,9 +251,13 @@ def _count_unchanged(report: EvalReport, baseline: EvalReport, diff: ReportDiff)
     """Entries present in both reports with same status AND same score.
 
     Skipped-state transitions count as changes — they're entries in
-    `newly_skipped` or `newly_running`, not "unchanged."
+    `newly_skipped` or `newly_running`, not "unchanged." Entries from
+    entirely new runs (in `diff.runs_b_only`) are also excluded — those
+    are added, not unchanged.
     """
-    matched_in_report = report.total_score_count() - len(diff.absent_in_a)
+    new_run_ids = set(diff.runs_b_only)
+    new_run_entries = sum(len(r.all_results()) for r in report.runs if r.run_id in new_run_ids)
+    matched_in_report = report.total_score_count() - len(diff.absent_in_a) - new_run_entries
     changed = (
         len(diff.regressions)
         + len(diff.improvements)

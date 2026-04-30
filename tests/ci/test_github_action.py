@@ -717,6 +717,40 @@ class TestSkippedVerdicts:
         assert "1 newly skipped" in out
         assert "1 newly running" in out
 
+    def test_unchanged_count_excludes_entries_from_runs_b_only(self) -> None:
+        # Brand-new run in B (not in baseline) — its scorer entries are
+        # NOT "unchanged"; they're added. Without subtracting them from
+        # matched_in_report, the unchanged count would over-count.
+        baseline = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[_step_entry("a", "Regex", 1.0, True)],
+                )
+            ]
+        )
+        report = _report(
+            runs=[
+                _run(
+                    run_id="r1",
+                    step_scores=[_step_entry("a", "Regex", 1.0, True)],
+                ),
+                _run(
+                    run_id="r2",  # NEW run, no baseline counterpart
+                    step_scores=[
+                        _step_entry("a", "Regex", 1.0, True),
+                        _step_entry("b", "Regex", 1.0, True),
+                    ],
+                ),
+            ]
+        )
+        out = render_pr_comment(
+            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+        )
+        # Only r1's single entry is genuinely unchanged. r2's two entries
+        # are from a new run; counting them as "unchanged" would be a lie.
+        assert "**Unchanged:** 1" in out
+
     def test_unchanged_count_excludes_skipped_transitions(self) -> None:
         # `passed → skipped` is a transition, not "unchanged."
         baseline = _report(
