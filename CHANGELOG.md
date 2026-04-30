@@ -19,6 +19,7 @@ Until v1.0, **minor and patch versions may include breaking changes** — pipewi
 
 ### Changed
 
+- **`pipewise eval --adapter` is no longer required when `--scorers <toml>` is supplied.** Previously the flag was structurally required by Typer but unused by the explicit-scorers branch; the inconsistency was surfaced via Gemini Code Assist on PR #56. Backward-compatible — existing scripts that pass `--adapter` continue to work; new invocations may omit it when `--scorers` is present. Supplying neither flag now raises a clear usage error (exit code 2).
 - **`README.md`** — Phase 5 status updated to shipped (status banner + roadmap table) (#50); documentation index now links to `docs/scorers.md` and `docs/ci-integration.md` (#42); Contributing section now links to `CODE_OF_CONDUCT.md` (#46).
 - **`CONTRIBUTING.md`** — Code of Conduct section migrated from an inline paragraph to a link to the formal `CODE_OF_CONDUCT.md`; reporting contact updated to `hello@pipewise.dev`. (#46)
 - **`pyproject.toml`** — author email migrated from the maintainer's personal gmail to project-bounded `hello@pipewise.dev` (Workspace alias). Affects published PyPI metadata when pipewise releases. (#46)

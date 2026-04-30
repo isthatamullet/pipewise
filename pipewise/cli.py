@@ -115,12 +115,13 @@ def eval_cmd(
         typer.Option("--dataset", help="Path to a JSONL dataset of pipeline runs."),
     ],
     adapter: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--adapter",
-            help="Module path of the adapter (e.g. 'factspark.integrations.pipewise.adapter').",
+            help="Module path of the adapter (e.g. 'factspark.integrations.pipewise.adapter'). "
+            "Required unless --scorers <toml> is supplied.",
         ),
-    ],
+    ] = None,
     scorers_path: Annotated[
         Path | None,
         typer.Option(
@@ -145,6 +146,13 @@ def eval_cmd(
     ] = None,
 ) -> None:
     """Run scorers across a dataset and persist an EvalReport."""
+    if adapter is None and scorers_path is None:
+        typer.echo(
+            "Error: must supply at least one of --adapter or --scorers.",
+            err=True,
+        )
+        raise typer.Exit(code=_USAGE_ERROR_EXIT_CODE)
+
     # Resolve scorers — either explicit override or adapter defaults.
     if scorers_path is not None:
         try:
@@ -153,6 +161,7 @@ def eval_cmd(
             typer.echo(f"Error loading scorer config: {exc}", err=True)
             raise typer.Exit(code=_USAGE_ERROR_EXIT_CODE) from exc
     else:
+        assert adapter is not None  # narrowed by the guard above
         try:
             defaults = resolve_default_scorers(adapter)
         except AdapterError as exc:
