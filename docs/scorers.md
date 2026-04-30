@@ -248,7 +248,7 @@ from pipewise.core.report import EvalReport
 from pipewise.runner.dataset import load_dataset
 from pathlib import Path
 
-report = EvalReport.model_validate_json(Path("reports/.../report.json").read_text())
+report = EvalReport.model_validate_json(Path("reports/.../report.json").read_text(encoding="utf-8"))
 runs_by_id = {r.run_id: r for r in load_dataset(Path("dataset.jsonl"))}
 
 for run in report.runs:
