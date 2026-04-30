@@ -14,7 +14,14 @@ A scorer evaluates one aspect of a step or run. Pipewise ships two protocol shap
 - **`StepScorer`** — evaluates a single `StepExecution`, optionally with an `expected` reference step.
 - **`RunScorer`** — evaluates an entire `PipelineRun`.
 
-Every scorer returns a `ScoreResult` with a normalized `score: float` in `[0.0, 1.0]`, a boolean `passed`, optional `reasoning` text, and a metadata dict.
+Every scorer returns a `ScoreResult` with these fields:
+
+- `status: Literal["passed", "failed", "skipped"]` — the verdict.
+- `score: float | None` — normalized in `[0.0, 1.0]` when `status` is `"passed"` or `"failed"`; `None` when `"skipped"` (a skipped scorer didn't compute a score).
+- `reasoning: str | None` — optional free-text explanation.
+- `metadata: dict[str, Any]` — scorer-specific extension data.
+
+See [Skipped scorers and `applies_to_step_ids`](#skipped-scorers-and-applies_to_step_ids) below for when scorers emit `"skipped"`.
 
 Implement either protocol on your own class to add a custom scorer; pipewise's runner doesn't care whether a scorer is built-in or external.
 
@@ -30,6 +37,50 @@ Implement either protocol on your own class to add a custom scorer; pipewise's r
 | [`LlmJudgeScorer`](#llmjudgescorer) | step | optional | `[llm-judge]` |
 | [`CostBudgetScorer`](#costbudgetscorer) | run | no | — |
 | [`LatencyBudgetScorer`](#latencybudgetscorer) | run | no | — |
+
+All step scorers accept an `applies_to_step_ids: Sequence[str] | None` kwarg — see the next section.
+
+---
+
+## Skipped scorers and `applies_to_step_ids`
+
+A scorer can emit `status="skipped"` when it didn't actually evaluate. Three places this happens:
+
+1. **Out-of-scope step** — every built-in step scorer accepts an `applies_to_step_ids: Sequence[str] | None` kwarg. When set, the runner emits a `skipped` `ScoreResult` for steps whose `step_id` isn't listed, without invoking the scorer's `score()` body.
+
+2. **Upstream step skipped** — when a step's own `status` is `"skipped"` (e.g., a branching pipeline that didn't execute one of two mutually exclusive branches), the runner auto-skips every scorer for that step. Failed steps still get scored — partial outputs may carry signal.
+
+3. **Budget scorers with `on_missing="skip"`** — `CostBudgetScorer` and `LatencyBudgetScorer` emit `skipped` when their `total_*` field is missing on the run AND `on_missing="skip"` is configured. Indicates the scorer didn't have data to evaluate against.
+
+### Example: scoping a regex to specific steps
+
+A regex check that only makes sense on steps producing user-facing text:
+
+```python
+from pipewise.scorers import RegexScorer
+
+scorer = RegexScorer(
+    field="article_body",
+    pattern=r".{100,}",
+    applies_to_step_ids=["step_a", "step_b", "step_c"],
+)
+```
+
+The runner skips this scorer on every other `step_id`. Reports show `status="skipped"` with reasoning `"step_id '<id>' not in applies_to_step_ids"` for those entries, so adopters can see at a glance which steps the scorer covered and which it didn't.
+
+(For a worked example using a real adapter's step IDs, see [`docs/adapter-guide.md`](adapter-guide.md#the-default_scorers-contract).)
+
+### Why "skipped" and not just "passed"
+
+A scorer that returns `passed=True` for steps it didn't validate creates false passing results — reports show "all green" on un-scored data. The `skipped` state lets reports carry the truth: the scorer didn't run, so the result has no signal.
+
+This affects `EvalReport.all_passed()` (skipped scorers don't disqualify "all passed"; they're absence-of-signal, not failure) and `pipewise diff` (skipped-state transitions land in dedicated `newly_skipped` / `newly_running` buckets, distinct from regressions/improvements).
+
+### CI behavior on `passed → skipped` transitions
+
+By default, `pipewise diff` does NOT exit non-zero on `passed → skipped` transitions. Narrowing scope via `applies_to_step_ids` is intentional, and CI shouldn't penalize it. If you want the stricter behavior — where `passed → skipped` (or removing a previously-passing scorer entirely) should require explicit acknowledgment — pass `--strict` to `pipewise diff`.
+
+Trade-off: `--strict` catches drift from coverage-narrowing PRs that quietly drop scorers, at the cost of refusing legitimate scope reductions until the diff is reviewed. Most adopters can leave it off.
 
 ---
 
@@ -207,8 +258,8 @@ Each `pipewise eval` invocation writes a JSON report to `<output-root>/<timestam
           "step_id": "analyze",
           "scorer_name": "article-body-present",
           "result": {
+            "status": "passed",
             "score": 1.0,
-            "passed": true,
             "reasoning": null,
             "metadata": {"pattern": ".{100,}", "mode": "search"}
           }
@@ -218,9 +269,9 @@ Each `pipewise eval` invocation writes a JSON report to `<output-root>/<timestam
         {
           "scorer_name": "cost-cap",
           "result": {
-            "score": 1.0,
-            "passed": true,
-            "reasoning": "total_cost_usd is None; on_missing='skip' so scorer passes",
+            "status": "skipped",
+            "score": null,
+            "reasoning": "total_cost_usd is None; on_missing='skip' so scorer did not evaluate",
             "metadata": {"missing": true, "budget": 1.0, "unit": "usd"}
           }
         }
@@ -234,7 +285,9 @@ Each `pipewise eval` invocation writes a JSON report to `<output-root>/<timestam
 ### Field guide
 
 - **`step_scores` and `run_scores`** (not `step_results` / `run_results`). Each entry is a *scoring*, not a step execution. `StepScoreEntry` carries `step_id` + `scorer_name` + the nested `result`; `RunScoreEntry` carries `scorer_name` + the nested `result`.
-- **The `result` object is nested.** `score`, `passed`, `reasoning`, and `metadata` all live inside `step_scores[].result.*` (or `run_scores[].result.*`). Code that wants `passed` reads `entry.result.passed`.
+- **The `result` object is nested.** `status`, `score`, `reasoning`, and `metadata` all live inside `step_scores[].result.*` (or `run_scores[].result.*`). Code that wants the verdict reads `entry.result.status`; code that wants the score reads `entry.result.score` and must handle `None` for skipped entries.
+- **`status` is `"passed" | "failed" | "skipped"`**. See [Skipped scorers and `applies_to_step_ids`](#skipped-scorers-and-applies_to_step_ids) for what `"skipped"` means.
+- **`score` is `null` when `status` is `"skipped"`** — a skipped scorer didn't compute a score; forcing a sentinel like `0.0` would lie about the absence of signal.
 - **`metadata` on a result is the scorer's own config** (regex `pattern`, budget `unit`, etc.) — useful for downstream consumers wanting to know how a scorer was parameterized, not for surfacing failure detail. Detail goes in `reasoning`.
 - **`scorer_names` (top-level)** snapshots every scorer that ran across the eval. If a name is in this list but absent from a particular run's entries, the scorer crashed or was filtered out for that run.
 
@@ -253,7 +306,7 @@ runs_by_id = {r.run_id: r for r in load_dataset(Path("dataset.jsonl"))}
 
 for run in report.runs:
     for entry in run.step_scores:
-        if not entry.result.passed:
+        if entry.result.status == "failed":
             run_data = runs_by_id[run.run_id]
             step = next(s for s in run_data.steps if s.step_id == entry.step_id)
             print(f"{run.run_id}/{entry.step_id}: {entry.result.reasoning}")
@@ -266,13 +319,16 @@ for run in report.runs:
 
 ```python
 report.total_score_count()    # int — every (step_score + run_score) entry
-report.passing_score_count()  # int — count where result.passed is True
-report.failing_score_count()  # int — count where result.passed is False
-report.passing_run_ids()      # list[str] — run_ids where every score passed
+report.passing_score_count()  # int — count where result.status == "passed"
+report.failing_score_count()  # int — count where result.status == "failed"
+report.skipped_score_count()  # int — count where result.status == "skipped"
+report.passing_run_ids()      # list[str] — run_ids where no score failed
 report.failing_run_ids()      # list[str] — run_ids where at least one score failed
 report.find_run(run_id)       # RunEvalResult | None
 report.find_scorer_result(run_id, scorer_name, step_id=None)  # ScoreResult | None
 ```
+
+`passing_run_ids()` includes runs where every scorer was skipped (vacuously). Consumers that want to distinguish "all passed" from "all skipped" should also check `skipped_score_count()`.
 
 These are methods (not JSON fields) so they don't bloat the file — derive them on read.
 
@@ -340,11 +396,35 @@ class IsNonEmptyScorer:
     def score(self, actual: StepExecution, expected: StepExecution | None = None) -> ScoreResult:
         is_non_empty = bool(actual.outputs)
         return ScoreResult(
+            status="passed" if is_non_empty else "failed",
             score=1.0 if is_non_empty else 0.0,
-            passed=is_non_empty,
             reasoning=None if is_non_empty else "outputs dict is empty",
         )
 ```
+
+To support `applies_to_step_ids` (recommended for any scorer that doesn't apply universally), expose it as an optional kwarg and store it on the instance — the runner reads `scorer.applies_to_step_ids` via `getattr`:
+
+```python
+from collections.abc import Sequence
+
+class IsNonEmptyScorer:
+    name = "outputs_non_empty"
+
+    def __init__(self, *, applies_to_step_ids: Sequence[str] | None = None) -> None:
+        self.applies_to_step_ids: Sequence[str] | None = (
+            tuple(applies_to_step_ids) if applies_to_step_ids is not None else None
+        )
+
+    def score(self, actual: StepExecution, expected: StepExecution | None = None) -> ScoreResult:
+        is_non_empty = bool(actual.outputs)
+        return ScoreResult(
+            status="passed" if is_non_empty else "failed",
+            score=1.0 if is_non_empty else 0.0,
+            reasoning=None if is_non_empty else "outputs dict is empty",
+        )
+```
+
+The runner short-circuits to `status="skipped"` for out-of-scope steps without invoking your `score()` body, so you never need to emit `"skipped"` from this path yourself. Emit `"skipped"` from `score()` only when there's a legitimate "scorer can't evaluate" reason (e.g., budget scorers' `on_missing="skip"` path).
 
 Pipewise's runner accepts any object satisfying the protocol — built-in or yours — without further registration.
 
@@ -358,13 +438,13 @@ Pipewise's runner accepts any object satisfying the protocol — built-in or you
 pipewise diff path/to/baseline/report.json path/to/current/report.json
 ```
 
-The diff categorizes every `(run_id, step_id, scorer_name)` triple into one of: regression (was passing, now failing), improvement (was failing, now passing), score delta (pass status unchanged but score moved), or absent-in-one (scorer added/removed across reports). The text output groups them with counts:
+The diff categorizes every `(run_id, step_id, scorer_name)` triple into one of: regression (was passing, now failing), improvement (was failing, now passing), score delta (status unchanged but score moved), newly_skipped (was running, now skipped), newly_running (was skipped, now running), or absent-in-one (scorer added/removed across reports). The text output groups them with counts:
 
 ```
 Newly failing (regressions) (3):
-  run_001 / latency-cap  score 1.000 → 0.000  passed True → False
-  run_002 / latency-cap  score 1.000 → 0.000  passed True → False
-  run_003 / latency-cap  score 1.000 → 0.000  passed True → False
+  run_001 / latency-cap  score 1.000 → 0.000  status passed → failed
+  run_002 / latency-cap  score 1.000 → 0.000  status passed → failed
+  run_003 / latency-cap  score 1.000 → 0.000  status passed → failed
 
 Summary: 3 regressed, 0 improved, 0 score deltas
 ```
@@ -377,9 +457,17 @@ Summary: 0 regressed, 0 improved, 0 score deltas
 
 **Exit codes** make `pipewise diff` usable as a CI gate even outside the GitHub Action:
 
-- `0` — no regressions (improvements and score-deltas don't affect exit status)
-- `1` — at least one regression
+- `0` — no regressions (improvements, score-deltas, and skipped-state transitions don't affect exit status)
+- `1` — at least one regression (`passed → failed`)
 - `2` — usage error (file not found, malformed JSON, etc.)
+
+**`--strict` flag.** Pass `--strict` to widen the exit-1 gate to also include `passed → skipped` transitions and `passed`-scorers that were removed entirely from the comparison report (`absent_in_b` with `status_a == "passed"`). Use this when scope-narrowing should require explicit acknowledgment instead of silently passing CI:
+
+```bash
+pipewise diff --strict baseline/report.json current/report.json
+```
+
+`failed → skipped` and `failed → absent` are still allowed under `--strict` — the scorer wasn't passing before either, so narrowing scope masks no signal.
 
 **JSON format** is available via `--format json` for tooling that wants the structured `ReportDiff` shape:
 
@@ -398,16 +486,20 @@ pipewise diff --format json baseline/report.json current/report.json
       "scorer_name": "latency-cap",
       "score_a": 1.0,
       "score_b": 0.0,
-      "passed_a": true,
-      "passed_b": false
+      "status_a": "passed",
+      "status_b": "failed"
     }
   ],
   "improvements": [],
   "score_deltas": [],
+  "newly_skipped": [],
+  "newly_running": [],
   "absent_in_a": [],
   "absent_in_b": []
 }
 ```
+
+`score_a` and `score_b` are `float | null` — entries with `status_a == "skipped"` or `status_b == "skipped"` carry `null` for the corresponding score.
 
 ### What `pipewise diff` answers (and what it doesn't)
 
