@@ -294,7 +294,7 @@ class TestEvalCommand:
     def test_multi_run_failure_cluster_surfaces_top_failure_line(
         self, tmp_path: Path, adapter_with_failing_defaults: str
     ) -> None:
-        # 3 runs × always-fail step scorer = 3 identical failures.
+        # 3 runs x always-fail step scorer = 3 identical failures.
         # The eval summary should emit a "Top failure: 3 of s1/always-fail (nope)" line.
         dataset = tmp_path / "ds.jsonl"
         _write_dataset(

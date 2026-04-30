@@ -237,30 +237,26 @@ def _top_failure_cluster(report: EvalReport) -> dict[str, Any] | None:
             if entry.result.passed:
                 continue
             key: tuple[str | None, str] = (entry.step_id, entry.scorer_name)
-            cluster = clusters.setdefault(
-                key,
-                {
+            if key not in clusters:
+                clusters[key] = {
                     "count": 0,
                     "scorer_name": entry.scorer_name,
                     "step_id": entry.step_id,
                     "reasoning": entry.result.reasoning,
-                },
-            )
-            cluster["count"] += 1
+                }
+            clusters[key]["count"] += 1
         for run_entry in run.run_scores:
             if run_entry.result.passed:
                 continue
             key = (None, run_entry.scorer_name)
-            cluster = clusters.setdefault(
-                key,
-                {
+            if key not in clusters:
+                clusters[key] = {
                     "count": 0,
                     "scorer_name": run_entry.scorer_name,
                     "step_id": None,
                     "reasoning": run_entry.result.reasoning,
-                },
-            )
-            cluster["count"] += 1
+                }
+            clusters[key]["count"] += 1
     if not clusters:
         return None
     return max(clusters.values(), key=lambda c: c["count"])
