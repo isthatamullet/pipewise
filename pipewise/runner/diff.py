@@ -101,8 +101,13 @@ def _make_entry(key: _ScoreEntryKey, a: ScoreResult, b: ScoreResult) -> ScoreDif
         scorer_name=key.scorer_name,
         score_a=a.score,
         score_b=b.score,
-        passed_a=a.status == "passed",
-        passed_b=b.status == "passed",
+        # Treat skipped as non-failing here (mirrors `EvalReport.all_passed()`).
+        # PR #2 will replace these booleans with explicit `status_a/status_b`
+        # plus newly_skipped/newly_running buckets; until then this avoids
+        # flagging `passed → skipped` (e.g., scope narrowed via
+        # applies_to_step_ids) as a regression.
+        passed_a=a.status != "failed",
+        passed_b=b.status != "failed",
     )
 
 
