@@ -138,12 +138,13 @@ jobs:
           # 3. Run pipewise eval on the JSONL of PipelineRuns. Pipewise
           #    writes to a timestamped subdirectory under --output-root;
           #    we copy the produced file to a stable path for the artifact
-          #    upload below.
+          #    upload below. The per-adapter segment under reports/ keeps
+          #    the glob unambiguous in multi-adapter repos.
           pipewise eval \
             --adapter my_pipeline_pipewise.adapter \
             --dataset runs.jsonl \
-            --output-root reports/
-          cp reports/*/report.json report.json
+            --output-root reports/my_pipeline_pipewise/
+          cp reports/my_pipeline_pipewise/*/report.json report.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -227,8 +228,8 @@ jobs:
           pipewise eval \
             --adapter my_pipeline_pipewise.adapter \
             --dataset runs.jsonl \
-            --output-root reports/
-          cp reports/*/report.json report.json
+            --output-root reports/my_pipeline_pipewise/
+          cp reports/my_pipeline_pipewise/*/report.json report.json
 
       - uses: actions/upload-artifact@v4
         with:
