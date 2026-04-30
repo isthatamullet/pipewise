@@ -11,29 +11,36 @@ Two flavors:
 Design rationale and the broader scoring contract live in the internal design notes.
 """
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, Self, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pipewise.core.schema import PipelineRun, StepExecution
+
+ScoreStatus = Literal["passed", "failed", "skipped"]
 
 
 class ScoreResult(BaseModel):
     """The output of one scorer evaluating one step or run.
 
-    `score` is canonical 0.0-1.0 so reports can compare results across
-    scorers. `passed` is the boolean verdict (typically threshold-based —
-    each scorer decides what "pass" means for itself).
+    `status` is the tri-state verdict. `score` is canonical 0.0-1.0 when
+    the scorer actually ran; `None` when `status == "skipped"` because a
+    skipped scorer didn't compute a score and forcing a sentinel would lie
+    about the absence of signal.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    score: float = Field(ge=0.0, le=1.0)
-    """Canonical score in [0.0, 1.0]. 1.0 = perfect; 0.0 = total mismatch."""
+    status: ScoreStatus
+    """`"passed"`, `"failed"`, or `"skipped"`. `"skipped"` means the
+    scorer did not actually evaluate — e.g., the step was out of the
+    scorer's `applies_to_step_ids` scope, or a budget scorer's
+    `on_missing="skip"` path fired with no upstream data."""
 
-    passed: bool
-    """Whether this score crosses the scorer's pass threshold. Scorers
-    define their own threshold; the boolean is what reports aggregate."""
+    score: float | None = Field(default=None, ge=0.0, le=1.0)
+    """Canonical score in [0.0, 1.0] when the scorer ran; `None` iff
+    `status == "skipped"`. Required when `status` is `"passed"` or
+    `"failed"` (enforced by validator)."""
 
     reasoning: str | None = None
     """Free-text explanation. Required reading for LLM-judge scorers and
@@ -44,6 +51,12 @@ class ScoreResult(BaseModel):
     """Scorer-specific data (e.g., per-field diff for `ExactMatchScorer`,
     judge-model/temperature for `LlmJudgeScorer`). Same role as the
     `metadata` escape hatch on `PipelineRun` and `StepExecution`."""
+
+    @model_validator(mode="after")
+    def _score_required_unless_skipped(self) -> Self:
+        if self.status != "skipped" and self.score is None:
+            raise ValueError("score is required when status is 'passed' or 'failed'")
+        return self
 
 
 @runtime_checkable

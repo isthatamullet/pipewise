@@ -45,16 +45,16 @@ def _run() -> PipelineRun:
 
 class TestScoreResult:
     def test_minimal_valid(self) -> None:
-        result = ScoreResult(score=1.0, passed=True)
+        result = ScoreResult(score=1.0, status="passed")
         assert result.score == 1.0
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.reasoning is None
         assert result.metadata == {}
 
     def test_full_result(self) -> None:
         result = ScoreResult(
             score=0.85,
-            passed=True,
+            status="passed",
             reasoning="Output matched expected on 17 of 20 fields.",
             metadata={"field_diff": {"title": "ok", "summary": "differs"}},
         )
@@ -64,27 +64,49 @@ class TestScoreResult:
     @pytest.mark.parametrize("score", [-0.01, 1.01, 2.0, -1.0])
     def test_score_out_of_range_rejected(self, score: float) -> None:
         with pytest.raises(ValidationError):
-            ScoreResult(score=score, passed=True)
+            ScoreResult(score=score, status="passed")
 
     @pytest.mark.parametrize("score", [0.0, 0.5, 1.0])
     def test_score_at_bounds_accepted(self, score: float) -> None:
-        result = ScoreResult(score=score, passed=False)
+        result = ScoreResult(score=score, status="failed")
         assert result.score == score
 
     def test_extra_field_rejected(self) -> None:
         # Same convention as PipelineRun / StepExecution: extensions go in metadata.
         with pytest.raises(ValidationError):
-            ScoreResult(score=0.5, passed=True, unknown_field="value")  # type: ignore[call-arg]
+            ScoreResult(score=0.5, status="passed", unknown_field="value")  # type: ignore[call-arg]
 
     def test_round_trip_json(self) -> None:
         result = ScoreResult(
             score=0.7,
-            passed=True,
+            status="passed",
             reasoning="three-of-five claims verified",
             metadata={"verified": 3, "total": 5},
         )
         restored = ScoreResult.model_validate_json(result.model_dump_json())
         assert restored == result
+
+    def test_skipped_status_allows_none_score(self) -> None:
+        # A skipped scorer didn't run, so it can't carry a score.
+        result = ScoreResult(status="skipped", reasoning="step out of scope")
+        assert result.status == "skipped"
+        assert result.score is None
+
+    def test_skipped_status_round_trips(self) -> None:
+        result = ScoreResult(status="skipped", reasoning="step out of scope")
+        restored = ScoreResult.model_validate_json(result.model_dump_json())
+        assert restored == result
+
+    def test_passed_status_requires_score(self) -> None:
+        # status="passed" or "failed" without a score is a malformed result.
+        with pytest.raises(ValidationError, match="score is required"):
+            ScoreResult(status="passed")
+        with pytest.raises(ValidationError, match="score is required"):
+            ScoreResult(status="failed", reasoning="no score given")
+
+    def test_invalid_status_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ScoreResult(status="ok", score=1.0)  # type: ignore[arg-type]
 
 
 class TestStepScorerProtocol:
@@ -101,7 +123,7 @@ class TestStepScorerProtocol:
                 actual: StepExecution,
                 expected: StepExecution | None = None,
             ) -> ScoreResult:
-                return ScoreResult(score=1.0, passed=True)
+                return ScoreResult(score=1.0, status="passed")
 
         scorer = TrivialStepScorer()
         assert isinstance(scorer, StepScorer)
@@ -109,7 +131,7 @@ class TestStepScorerProtocol:
         # Calling the scorer produces a real ScoreResult.
         result = scorer.score(_step())
         assert result.score == 1.0
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_object_without_name_fails_isinstance(self) -> None:
         class NoName:
@@ -118,7 +140,7 @@ class TestStepScorerProtocol:
                 actual: StepExecution,
                 expected: StepExecution | None = None,
             ) -> ScoreResult:
-                return ScoreResult(score=0.0, passed=False)
+                return ScoreResult(score=0.0, status="failed")
 
         # Without `name`, the Protocol's structural check should fail.
         assert not isinstance(NoName(), StepScorer)
@@ -142,19 +164,19 @@ class TestStepScorerProtocol:
                 expected: StepExecution | None = None,
             ) -> ScoreResult:
                 if expected is None:
-                    return ScoreResult(score=1.0, passed=True, reasoning="no expected")
+                    return ScoreResult(score=1.0, status="passed", reasoning="no expected")
                 matches = actual.step_id == expected.step_id
                 return ScoreResult(
+                    status="passed" if matches else "failed",
                     score=1.0 if matches else 0.0,
-                    passed=matches,
                     reasoning=f"actual={actual.step_id!r}, expected={expected.step_id!r}",
                 )
 
         scorer = ExactStepIdScorer()
         result = scorer.score(_step("a"), _step("a"))
-        assert result.passed is True
+        assert result.status == "passed"
         result = scorer.score(_step("a"), _step("b"))
-        assert result.passed is False
+        assert result.status == "failed"
 
 
 class TestRunScorerProtocol:
@@ -167,7 +189,7 @@ class TestRunScorerProtocol:
                 actual: PipelineRun,
                 expected: PipelineRun | None = None,
             ) -> ScoreResult:
-                return ScoreResult(score=1.0, passed=True)
+                return ScoreResult(score=1.0, status="passed")
 
         scorer = TrivialRunScorer()
         assert isinstance(scorer, RunScorer)
@@ -197,7 +219,7 @@ class TestRunScorerProtocol:
                 actual: StepExecution,
                 expected: StepExecution | None = None,
             ) -> ScoreResult:
-                return ScoreResult(score=1.0, passed=True)
+                return ScoreResult(score=1.0, status="passed")
 
         # Both Protocols share shape ("name" + "score"), so isinstance is
         # True for both. This is documented Python Protocol behavior.

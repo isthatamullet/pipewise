@@ -46,14 +46,14 @@ class _PassingStepScorer:
     name = "passing-step"
 
     def score(self, actual: StepExecution, expected: StepExecution | None = None) -> ScoreResult:
-        return ScoreResult(score=1.0, passed=True, reasoning="ok")
+        return ScoreResult(score=1.0, status="passed", reasoning="ok")
 
 
 class _FailingStepScorer:
     name = "failing-step"
 
     def score(self, actual: StepExecution, expected: StepExecution | None = None) -> ScoreResult:
-        return ScoreResult(score=0.0, passed=False, reasoning="bad")
+        return ScoreResult(score=0.0, status="failed", reasoning="bad")
 
 
 class _RaisingStepScorer:
@@ -67,7 +67,7 @@ class _PassingRunScorer:
     name = "passing-run"
 
     def score(self, actual: PipelineRun, expected: PipelineRun | None = None) -> ScoreResult:
-        return ScoreResult(score=1.0, passed=True)
+        return ScoreResult(score=1.0, status="passed")
 
 
 class _RaisingRunScorer:
@@ -91,7 +91,7 @@ class TestRunEval:
         run_result = report.runs[0]
         assert len(run_result.step_scores) == 3
         assert {e.step_id for e in run_result.step_scores} == {"s1", "s2", "s3"}
-        assert all(e.result.passed for e in run_result.step_scores)
+        assert all(e.result.status == "passed" for e in run_result.step_scores)
 
     def test_run_scorer_runs_once_per_run(self) -> None:
         runs = [_run("run_1"), _run("run_2")]
@@ -101,7 +101,7 @@ class TestRunEval:
         for run_result in report.runs:
             assert len(run_result.step_scores) == 0
             assert len(run_result.run_scores) == 1
-            assert run_result.run_scores[0].result.passed
+            assert run_result.run_scores[0].result.status == "passed"
 
     def test_step_scorer_exception_recorded_as_failed_result(self) -> None:
         run = _run(steps=[_step("s1")])
@@ -109,7 +109,7 @@ class TestRunEval:
 
         entry = report.runs[0].step_scores[0]
         assert entry.scorer_name == "raising-step"
-        assert entry.result.passed is False
+        assert entry.result.status == "failed"
         assert entry.result.score == 0.0
         assert entry.result.reasoning is not None
         assert "RuntimeError" in entry.result.reasoning
@@ -121,7 +121,7 @@ class TestRunEval:
 
         entry = report.runs[0].run_scores[0]
         assert entry.scorer_name == "raising-run"
-        assert entry.result.passed is False
+        assert entry.result.status == "failed"
         assert entry.result.reasoning is not None
         assert "ValueError" in entry.result.reasoning
 
@@ -210,3 +210,90 @@ class TestRunEval:
             run = _run(steps=[_step("s1")])  # ensure completed_at set
         report = run_eval([run], [_PassingStepScorer()], [])
         assert len(report.runs) == 1
+
+
+class TestAutoSkipBehavior:
+    """The runner short-circuits to status='skipped' before invoking the scorer
+    when the scorer's `applies_to_step_ids` excludes the step OR the step
+    itself has status='skipped'."""
+
+    def test_step_status_skipped_short_circuits_scorer(self) -> None:
+        skipped_step = StepExecution(
+            step_id="s_skip",
+            step_name="SKIP",
+            started_at=NOW,
+            completed_at=None,
+            status="skipped",
+            outputs={},
+        )
+        run = _run(steps=[_step("s1"), skipped_step])
+        report = run_eval([run], [_PassingStepScorer()], [])
+
+        scores = report.runs[0].step_scores
+        assert len(scores) == 2
+        assert scores[0].step_id == "s1"
+        assert scores[0].result.status == "passed"
+        assert scores[1].step_id == "s_skip"
+        assert scores[1].result.status == "skipped"
+        assert scores[1].result.score is None
+        assert "scorer not invoked" in (scores[1].result.reasoning or "")
+
+    def test_failed_step_still_gets_scored(self) -> None:
+        # Failed steps may carry partial outputs worth scoring; the runner
+        # does NOT auto-skip on `step.status == "failed"`.
+        failed_step = StepExecution(
+            step_id="s_fail",
+            step_name="FAIL",
+            started_at=NOW,
+            completed_at=None,
+            status="failed",
+            outputs={"value": "partial"},
+        )
+        run = _run(steps=[failed_step])
+        report = run_eval([run], [_PassingStepScorer()], [])
+
+        scores = report.runs[0].step_scores
+        assert len(scores) == 1
+        # The scorer ran (it was the passing scorer) and returned passed.
+        assert scores[0].result.status == "passed"
+
+    def test_applies_to_step_ids_excludes_other_steps(self) -> None:
+        class ScopedScorer:
+            name = "scoped"
+            applies_to_step_ids = ("s1",)
+
+            def score(
+                self,
+                actual: StepExecution,
+                expected: StepExecution | None = None,
+            ) -> ScoreResult:
+                return ScoreResult(status="passed", score=1.0)
+
+        run = _run(steps=[_step("s1"), _step("s2"), _step("s3")])
+        report = run_eval([run], [ScopedScorer()], [])
+
+        scores = {e.step_id: e.result for e in report.runs[0].step_scores}
+        assert scores["s1"].status == "passed"
+        assert scores["s2"].status == "skipped"
+        assert scores["s2"].score is None
+        assert "not in applies_to_step_ids" in (scores["s2"].reasoning or "")
+        assert scores["s3"].status == "skipped"
+
+    def test_applies_to_step_ids_none_means_run_on_all(self) -> None:
+        # Backwards-compat: scorers without `applies_to_step_ids` (or None) run
+        # on every step, as before.
+        class UnscopedScorer:
+            name = "unscoped"
+
+            def score(
+                self,
+                actual: StepExecution,
+                expected: StepExecution | None = None,
+            ) -> ScoreResult:
+                return ScoreResult(status="passed", score=1.0)
+
+        run = _run(steps=[_step("s1"), _step("s2")])
+        report = run_eval([run], [UnscopedScorer()], [])
+
+        statuses = [e.result.status for e in report.runs[0].step_scores]
+        assert statuses == ["passed", "passed"]

@@ -132,15 +132,28 @@ def _aggregate_scores(report: EvalReport) -> dict[_RollupKey, list[ScoreResult]]
 
 
 def _avg_score(results: list[ScoreResult]) -> float | None:
-    if not results:
+    """Average across results, ignoring skipped entries (score=None)."""
+    scored = [r.score for r in results if r.score is not None]
+    if not scored:
         return None
-    return sum(r.score for r in results) / len(results)
+    return sum(scored) / len(scored)
 
 
 def _format_score(score: float | None) -> str:
     if score is None:
         return "—"
     return f"{score:.2f}"
+
+
+def _status_icon(status: str) -> str:
+    """Render a `ScoreResult.status` as a markdown icon. PR #3 will replace
+    this with verdict-line-aware rendering; for now the rollup table just
+    needs three states."""
+    if status == "passed":
+        return "✅"
+    if status == "failed":
+        return "❌"
+    return "⏭"
 
 
 # Epsilon for treating floating-point deltas as "no change". Scores live in
@@ -253,7 +266,9 @@ def _format_regression_line(entry: ScoreDiffEntry) -> str:
     if entry.step_id is not None:
         location += f" × `{entry.step_id}`"
     location += f" · run `{entry.run_id}`"
-    return f"- {location} — score {entry.score_a:.2f} → {entry.score_b:.2f} (passed → failed)"
+    a = _format_score(entry.score_a)
+    b = _format_score(entry.score_b)
+    return f"- {location} — score {a} → {b} (passed → failed)"
 
 
 def _render_newly_failing(regressions: list[ScoreDiffEntry]) -> str:
@@ -282,14 +297,14 @@ def _render_full_report_details(report: EvalReport) -> str:
         for step_entry in sorted(run.step_scores, key=lambda e: (e.step_id, e.scorer_name)):
             rows.append(
                 f"| `{run.run_id}` | `{step_entry.step_id}` | `{step_entry.scorer_name}` "
-                f"| {step_entry.result.score:.2f} | "
-                f"{'✅' if step_entry.result.passed else '❌'} |"
+                f"| {_format_score(step_entry.result.score)} | "
+                f"{_status_icon(step_entry.result.status)} |"
             )
         for run_entry in sorted(run.run_scores, key=lambda e: e.scorer_name):
             rows.append(
                 f"| `{run.run_id}` | _(run-level)_ | `{run_entry.scorer_name}` "
-                f"| {run_entry.result.score:.2f} | "
-                f"{'✅' if run_entry.result.passed else '❌'} |"
+                f"| {_format_score(run_entry.result.score)} | "
+                f"{_status_icon(run_entry.result.status)} |"
             )
 
     body = "\n".join(rows)

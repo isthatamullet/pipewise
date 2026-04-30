@@ -25,11 +25,15 @@ class ExactMatchScorer:
         fields: Sequence[str],
         *,
         name: str | None = None,
+        applies_to_step_ids: Sequence[str] | None = None,
     ) -> None:
         if not fields:
             raise ValueError("ExactMatchScorer requires at least one field")
         self.fields: list[str] = list(fields)
         self.name: str = name or f"exact_match[{','.join(self.fields)}]"
+        self.applies_to_step_ids: Sequence[str] | None = (
+            tuple(applies_to_step_ids) if applies_to_step_ids is not None else None
+        )
 
     def score(
         self,
@@ -75,8 +79,8 @@ class ExactMatchScorer:
             reasoning = "; ".join(parts)
 
         return ScoreResult(
+            status="passed" if passed else "failed",
             score=score_value,
-            passed=passed,
             reasoning=reasoning,
             metadata={
                 "matched_fields": matches,

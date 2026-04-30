@@ -66,7 +66,7 @@ def adapter_with_defaults(monkeypatch: pytest.MonkeyPatch) -> str:
         def score(
             self, actual: StepExecution, expected: StepExecution | None = None
         ) -> ScoreResult:
-            return ScoreResult(score=1.0, passed=True)
+            return ScoreResult(score=1.0, status="passed")
 
     def default_scorers() -> tuple[list[object], list[object]]:
         return ([_AlwaysPassStepScorer()], [])
@@ -87,7 +87,7 @@ def adapter_with_failing_defaults(monkeypatch: pytest.MonkeyPatch) -> str:
         def score(
             self, actual: StepExecution, expected: StepExecution | None = None
         ) -> ScoreResult:
-            return ScoreResult(score=0.0, passed=False, reasoning="nope")
+            return ScoreResult(score=0.0, status="failed", reasoning="nope")
 
     def default_scorers() -> tuple[list[object], list[object]]:
         return ([_AlwaysFailStepScorer()], [])
@@ -358,7 +358,7 @@ class TestEvalCommand:
             name = "run-fail"
 
             def score(self, run: PipelineRun) -> ScoreResult:
-                return ScoreResult(score=0.0, passed=False, reasoning="run-level-fail")
+                return ScoreResult(score=0.0, status="failed", reasoning="run-level-fail")
 
         def default_scorers() -> tuple[list[object], list[object]]:
             return ([], [_AlwaysFailRunScorer()])
@@ -403,7 +403,7 @@ class TestEvalCommand:
             def score(
                 self, actual: StepExecution, expected: StepExecution | None = None
             ) -> ScoreResult:
-                return ScoreResult(score=0.0, passed=False, reasoning=long_reason)
+                return ScoreResult(score=0.0, status="failed", reasoning=long_reason)
 
         def default_scorers() -> tuple[list[object], list[object]]:
             return ([_LongReasonStepScorer()], [])

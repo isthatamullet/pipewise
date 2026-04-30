@@ -6,8 +6,8 @@ the same module because they're variations of one pattern; splitting them
 into separate files would just duplicate the boilerplate.
 
 Behavior when the field is None (e.g., the adapter didn't capture cost):
-- `on_missing="fail"` (default): score=0, passed=False, reasoning explains.
-- `on_missing="skip"`: score=1, passed=True, reasoning notes the skip.
+- `on_missing="fail"` (default): status="failed", score=0, reasoning explains.
+- `on_missing="skip"`: status="skipped", score=None, reasoning notes the skip.
 
 `"fail"` is the default because silent passing on missing data masks
 real problems — if you've configured a cost budget, you want to know when
@@ -55,8 +55,8 @@ class CostBudgetScorer:
 
         passed = cost <= self.budget_usd
         return ScoreResult(
+            status="passed" if passed else "failed",
             score=1.0 if passed else 0.0,
-            passed=passed,
             reasoning=(
                 None if passed else f"total_cost_usd {cost} exceeds budget {self.budget_usd}"
             ),
@@ -100,8 +100,8 @@ class LatencyBudgetScorer:
 
         passed = latency <= self.budget_ms
         return ScoreResult(
+            status="passed" if passed else "failed",
             score=1.0 if passed else 0.0,
-            passed=passed,
             reasoning=(
                 None if passed else f"total_latency_ms {latency} exceeds budget {self.budget_ms}"
             ),
@@ -122,14 +122,14 @@ def _missing_result(
 ) -> ScoreResult:
     if on_missing == "skip":
         return ScoreResult(
-            score=1.0,
-            passed=True,
-            reasoning=f"{field} is None; on_missing='skip' so scorer passes",
+            status="skipped",
+            score=None,
+            reasoning=f"{field} is None; on_missing='skip' so scorer did not evaluate",
             metadata={"missing": True, "budget": budget, "unit": unit},
         )
     return ScoreResult(
+        status="failed",
         score=0.0,
-        passed=False,
         reasoning=(
             f"{field} is None; budget cannot be evaluated (set on_missing='skip' to allow this)"
         ),

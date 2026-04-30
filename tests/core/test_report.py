@@ -17,11 +17,15 @@ NOW = datetime(2026, 4, 27, 12, 0, 0, tzinfo=UTC)
 
 
 def _passing(reasoning: str = "") -> ScoreResult:
-    return ScoreResult(score=1.0, passed=True, reasoning=reasoning or None)
+    return ScoreResult(score=1.0, status="passed", reasoning=reasoning or None)
 
 
 def _failing(reasoning: str = "") -> ScoreResult:
-    return ScoreResult(score=0.0, passed=False, reasoning=reasoning or None)
+    return ScoreResult(score=0.0, status="failed", reasoning=reasoning or None)
+
+
+def _skipped(reasoning: str = "") -> ScoreResult:
+    return ScoreResult(status="skipped", reasoning=reasoning or None)
 
 
 class TestEntries:
@@ -34,7 +38,7 @@ class TestEntries:
             result=_passing(),
         )
         assert entry.step_id == "analyze"
-        assert entry.result.passed is True
+        assert entry.result.status == "passed"
 
     def test_run_entry_minimal(self) -> None:
         entry = RunScoreEntry(
@@ -97,9 +101,9 @@ class TestRunEvalResult:
         all_results = result.all_results()
         assert len(all_results) == 3
         # Step scores come first, in order, then run scores.
-        assert all_results[0].passed is True
-        assert all_results[1].passed is False
-        assert all_results[2].passed is True
+        assert all_results[0].status == "passed"
+        assert all_results[1].status == "failed"
+        assert all_results[2].status == "passed"
 
     def test_all_passed_when_everything_passes(self) -> None:
         result = self._result(
@@ -128,6 +132,27 @@ class TestRunEvalResult:
         result = self._result()
         assert result.all_passed() is True
         assert len(result.all_results()) == 0
+
+    def test_all_passed_true_when_only_skipped_and_passed(self) -> None:
+        # Skipped scorers don't disqualify "all passed" — there's no signal,
+        # not a fail. Verdict-line code should call out all-skipped explicitly
+        # so adopters aren't fooled.
+        result = self._result(
+            step_scores=[
+                StepScoreEntry(step_id="s1", scorer_name="exact", result=_passing()),
+                StepScoreEntry(step_id="s2", scorer_name="exact", result=_skipped()),
+            ],
+        )
+        assert result.all_passed() is True
+
+    def test_all_passed_true_when_all_skipped(self) -> None:
+        result = self._result(
+            step_scores=[
+                StepScoreEntry(step_id="s1", scorer_name="exact", result=_skipped()),
+                StepScoreEntry(step_id="s2", scorer_name="exact", result=_skipped()),
+            ],
+        )
+        assert result.all_passed() is True
 
 
 class TestEvalReport:
@@ -177,6 +202,24 @@ class TestEvalReport:
         assert report.total_score_count() == 4
         assert report.passing_score_count() == 3
         assert report.failing_score_count() == 1
+        assert report.skipped_score_count() == 0
+
+    def test_skipped_score_count_distinct_from_passing(self) -> None:
+        report = self._report(
+            runs=[
+                self._run_result(
+                    "r1",
+                    StepScoreEntry(step_id="s1", scorer_name="x", result=_passing()),
+                    StepScoreEntry(step_id="s2", scorer_name="x", result=_skipped()),
+                    StepScoreEntry(step_id="s3", scorer_name="x", result=_skipped()),
+                    RunScoreEntry(scorer_name="cost_budget", result=_failing()),
+                ),
+            ],
+        )
+        assert report.total_score_count() == 4
+        assert report.passing_score_count() == 1
+        assert report.failing_score_count() == 1
+        assert report.skipped_score_count() == 2
 
     def test_passing_and_failing_run_ids(self) -> None:
         report = self._report(

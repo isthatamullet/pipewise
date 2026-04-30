@@ -31,48 +31,48 @@ class TestRegexScorer:
         result = RegexScorer(field="text", pattern=r"\d+").score(
             _step({"text": "Order 12345 received"})
         )
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.score == 1.0
         assert result.reasoning is None
 
     def test_search_no_match_fails(self) -> None:
         result = RegexScorer(field="text", pattern=r"\d+").score(_step({"text": "no digits here"}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.0
         assert "did not search" in (result.reasoning or "")
 
     def test_fullmatch_mode_strict(self) -> None:
         scorer = RegexScorer(field="id", pattern=r"[A-Z]{3}\d{3}", match_mode="fullmatch")
-        assert scorer.score(_step({"id": "ABC123"})).passed is True
+        assert scorer.score(_step({"id": "ABC123"})).status == "passed"
         # Has prefix junk → fullmatch fails, but search would pass.
-        assert scorer.score(_step({"id": "junk-ABC123"})).passed is False
+        assert scorer.score(_step({"id": "junk-ABC123"})).status == "failed"
 
     def test_match_mode_anchors_at_start(self) -> None:
         scorer = RegexScorer(field="text", pattern=r"hello", match_mode="match")
-        assert scorer.score(_step({"text": "hello world"})).passed is True
-        assert scorer.score(_step({"text": "world hello"})).passed is False
+        assert scorer.score(_step({"text": "hello world"})).status == "passed"
+        assert scorer.score(_step({"text": "world hello"})).status == "failed"
 
     def test_missing_field_handled(self) -> None:
         result = RegexScorer(field="absent", pattern=r".*").score(_step({"present": "x"}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.0
         assert "missing from outputs" in (result.reasoning or "")
 
     def test_non_string_field_handled(self) -> None:
         result = RegexScorer(field="count", pattern=r"\d+").score(_step({"count": 42}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.0
         assert "not str" in (result.reasoning or "")
 
     def test_accepts_compiled_pattern(self) -> None:
         compiled = re.compile(r"^\d{4}$")
         result = RegexScorer(field="year", pattern=compiled).score(_step({"year": "2026"}))
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_empty_string_field_with_match_anything_passes(self) -> None:
         # Regex semantics: re.search("", "") matches at position 0.
         result = RegexScorer(field="x", pattern=r"").score(_step({"x": ""}))
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_empty_field_name_rejected(self) -> None:
         with pytest.raises(ValueError, match="non-empty field name"):
@@ -95,4 +95,18 @@ class TestRegexScorer:
         actual = _step({"x": "value"})
         expected = _step({"x": "different"})
         result = RegexScorer(field="x", pattern=r"value").score(actual, expected)
-        assert result.passed is True
+        assert result.status == "passed"
+
+    def test_applies_to_step_ids_attribute_stored(self) -> None:
+        # The runner reads `applies_to_step_ids` to decide whether to invoke
+        # the scorer; this test only verifies the kwarg lands as an attribute.
+        scorer = RegexScorer(
+            field="x",
+            pattern=r".*",
+            applies_to_step_ids=["analyze", "enhance"],
+        )
+        assert scorer.applies_to_step_ids == ("analyze", "enhance")
+
+    def test_applies_to_step_ids_default_is_none(self) -> None:
+        scorer = RegexScorer(field="x", pattern=r".*")
+        assert scorer.applies_to_step_ids is None

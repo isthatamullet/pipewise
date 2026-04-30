@@ -43,36 +43,37 @@ class TestCostBudgetScorer:
 
     def test_under_budget_passes(self) -> None:
         result = CostBudgetScorer(budget_usd=1.0).score(_run(total_cost_usd=0.5))
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.score == 1.0
 
     def test_at_budget_passes(self) -> None:
         result = CostBudgetScorer(budget_usd=1.0).score(_run(total_cost_usd=1.0))
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_over_budget_fails(self) -> None:
         result = CostBudgetScorer(budget_usd=1.0).score(_run(total_cost_usd=1.5))
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.0
         assert "exceeds budget" in (result.reasoning or "")
         assert result.metadata == {"actual": 1.5, "budget": 1.0, "unit": "usd"}
 
     def test_zero_budget_zero_cost_passes(self) -> None:
         result = CostBudgetScorer(budget_usd=0.0).score(_run(total_cost_usd=0.0))
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_missing_cost_fails_by_default(self) -> None:
         result = CostBudgetScorer(budget_usd=1.0).score(_run(total_cost_usd=None))
-        assert result.passed is False
+        assert result.status == "failed"
         assert "is None" in (result.reasoning or "")
         assert result.metadata["missing"] is True
 
-    def test_missing_cost_with_skip_passes(self) -> None:
+    def test_missing_cost_with_skip_emits_skipped(self) -> None:
         result = CostBudgetScorer(budget_usd=1.0, on_missing="skip").score(
             _run(total_cost_usd=None)
         )
-        assert result.passed is True
-        assert "passes" in (result.reasoning or "")
+        assert result.status == "skipped"
+        assert result.score is None
+        assert "did not evaluate" in (result.reasoning or "")
         assert result.metadata["missing"] is True
 
     def test_negative_budget_rejected(self) -> None:
@@ -92,28 +93,29 @@ class TestLatencyBudgetScorer:
 
     def test_under_budget_passes(self) -> None:
         result = LatencyBudgetScorer(budget_ms=1000).score(_run(total_latency_ms=500))
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_at_budget_passes(self) -> None:
         result = LatencyBudgetScorer(budget_ms=1000).score(_run(total_latency_ms=1000))
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_over_budget_fails(self) -> None:
         result = LatencyBudgetScorer(budget_ms=1000).score(_run(total_latency_ms=1500))
-        assert result.passed is False
+        assert result.status == "failed"
         assert "exceeds budget" in (result.reasoning or "")
         assert result.metadata == {"actual": 1500, "budget": 1000, "unit": "ms"}
 
     def test_missing_latency_fails_by_default(self) -> None:
         result = LatencyBudgetScorer(budget_ms=1000).score(_run(total_latency_ms=None))
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.metadata["missing"] is True
 
-    def test_missing_latency_with_skip_passes(self) -> None:
+    def test_missing_latency_with_skip_emits_skipped(self) -> None:
         result = LatencyBudgetScorer(budget_ms=1000, on_missing="skip").score(
             _run(total_latency_ms=None)
         )
-        assert result.passed is True
+        assert result.status == "skipped"
+        assert result.score is None
 
     def test_negative_budget_rejected(self) -> None:
         with pytest.raises(ValueError, match="non-negative"):

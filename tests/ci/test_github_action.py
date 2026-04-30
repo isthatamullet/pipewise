@@ -17,7 +17,7 @@ NOW = datetime(2026, 4, 29, 12, 0, 0, tzinfo=UTC)
 
 
 def _result(score: float, passed: bool) -> ScoreResult:
-    return ScoreResult(score=score, passed=passed)
+    return ScoreResult(status="passed" if passed else "failed", score=score)
 
 
 def _step_entry(step_id: str, scorer_name: str, score: float, passed: bool) -> StepScoreEntry:

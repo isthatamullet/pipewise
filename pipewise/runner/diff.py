@@ -32,13 +32,15 @@ class ScoreDiffEntry(BaseModel):
     run_id: str
     step_id: str | None = None
     scorer_name: str
-    score_a: float
-    score_b: float
+    score_a: float | None
+    score_b: float | None
     passed_a: bool
     passed_b: bool
 
     @property
-    def delta(self) -> float:
+    def delta(self) -> float | None:
+        if self.score_a is None or self.score_b is None:
+            return None
         return self.score_b - self.score_a
 
 
@@ -99,14 +101,14 @@ def _make_entry(key: _ScoreEntryKey, a: ScoreResult, b: ScoreResult) -> ScoreDif
         scorer_name=key.scorer_name,
         score_a=a.score,
         score_b=b.score,
-        passed_a=a.passed,
-        passed_b=b.passed,
+        passed_a=a.status == "passed",
+        passed_b=b.status == "passed",
     )
 
 
 def _placeholder_result() -> ScoreResult:
     """Sentinel used when an entry is absent from one side of the diff."""
-    return ScoreResult(score=0.0, passed=False, reasoning="(absent)")
+    return ScoreResult(status="failed", score=0.0, reasoning="(absent)")
 
 
 def compute_diff(report_a: EvalReport, report_b: EvalReport) -> ReportDiff:
@@ -149,7 +151,11 @@ def compute_diff(report_a: EvalReport, report_b: EvalReport) -> ReportDiff:
                 regressions.append(entry)
             elif not entry.passed_a and entry.passed_b:
                 improvements.append(entry)
-            elif entry.score_a != entry.score_b:
+            elif (
+                entry.score_a is not None
+                and entry.score_b is not None
+                and entry.score_a != entry.score_b
+            ):
                 score_deltas.append(entry)
 
     return ReportDiff(
@@ -179,6 +185,9 @@ def format_diff(diff: ReportDiff) -> str:
             lines.append("  Added:   " + ", ".join(diff.runs_b_only))
         lines.append("")
 
+    def _fmt_score(s: float | None) -> str:
+        return "—" if s is None else f"{s:.3f}"
+
     def _entry_line(entry: ScoreDiffEntry) -> str:
         loc = entry.run_id
         if entry.step_id is not None:
@@ -186,7 +195,7 @@ def format_diff(diff: ReportDiff) -> str:
         loc += f" / {entry.scorer_name}"
         return (
             f"  {loc}  "
-            f"score {entry.score_a:.3f} → {entry.score_b:.3f}  "
+            f"score {_fmt_score(entry.score_a)} → {_fmt_score(entry.score_b)}  "
             f"passed {entry.passed_a} → {entry.passed_b}"
         )
 

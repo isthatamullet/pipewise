@@ -10,6 +10,7 @@ Two modes:
   where tolerance is interpreted as a fraction (e.g., `tolerance=0.1` for ±10%).
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 from pipewise.core.schema import StepExecution
@@ -31,6 +32,7 @@ class NumericToleranceScorer:
         *,
         relative: bool = False,
         name: str | None = None,
+        applies_to_step_ids: Sequence[str] | None = None,
     ) -> None:
         if not field:
             raise ValueError("NumericToleranceScorer requires a non-empty field name")
@@ -41,6 +43,9 @@ class NumericToleranceScorer:
         self.relative = relative
         mode_tag = "rel" if relative else "abs"
         self.name = name or f"numeric_tolerance[{field},{mode_tag}={tolerance}]"
+        self.applies_to_step_ids: Sequence[str] | None = (
+            tuple(applies_to_step_ids) if applies_to_step_ids is not None else None
+        )
 
     def score(
         self,
@@ -97,8 +102,8 @@ class NumericToleranceScorer:
                 )
 
         return ScoreResult(
+            status="passed" if passed else "failed",
             score=1.0 if passed else 0.0,
-            passed=passed,
             reasoning=reasoning,
             metadata={
                 "actual": actual_val,
@@ -112,8 +117,8 @@ class NumericToleranceScorer:
 
     def _fail(self, reasoning: str) -> ScoreResult:
         return ScoreResult(
+            status="failed",
             score=0.0,
-            passed=False,
             reasoning=reasoning,
             metadata={
                 "tolerance": self.tolerance,

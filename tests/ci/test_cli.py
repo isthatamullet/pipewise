@@ -51,7 +51,7 @@ def _build_report(
                     StepScoreEntry(
                         step_id="step",
                         scorer_name="ExactMatch",
-                        result=ScoreResult(score=score, passed=passed),
+                        result=ScoreResult(status="passed" if passed else "failed", score=score),
                     )
                 ],
             )

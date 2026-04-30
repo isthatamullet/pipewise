@@ -121,8 +121,8 @@ def test_default_scorers_drive_run_eval_end_to_end() -> None:
     # in-adapter test, now verified against the production runner on
     # multiple real articles.
     for run_result in report.runs:
-        passes = sum(1 for r in run_result.step_scores if r.result.passed)
-        fails = sum(1 for r in run_result.step_scores if not r.result.passed)
+        passes = sum(1 for r in run_result.step_scores if r.result.status == "passed")
+        fails = sum(1 for r in run_result.step_scores if r.result.status != "passed")
         assert passes == 6
         assert fails == 1
 
