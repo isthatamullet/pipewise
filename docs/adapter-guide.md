@@ -68,7 +68,7 @@ A minimal materialization script — call it `build_dataset.py` and check it int
 from pathlib import Path
 from your_pipeline_pipewise.adapter import load_run
 
-raw_run_paths = sorted(Path("articles/").glob("*_step1.json"))
+raw_run_paths = sorted(Path("path/to/outputs/").glob("*.json"))  # Adjust to your pipeline's output shape
 with Path("golden.jsonl").open("w", encoding="utf-8") as out:
     for path in raw_run_paths:
         run = load_run(path)
