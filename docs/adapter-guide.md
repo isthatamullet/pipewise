@@ -345,9 +345,35 @@ def default_scorers() -> tuple[list[StepScorer], list[RunScorer]]:
 
 **Convention: exclude `LlmJudgeScorer` from defaults.** It's the only built-in scorer that calls a paid API, and surprise costs hurt UX for first-time users. Power users opt in explicitly via `pipewise eval --scorers <toml>`. (See `docs/scorers.md` for the matching guidance on scorer config files.)
 
-**Convention: pick step-level scorers that produce a meaningful pass/fail signal, not all-pass-or-all-fail.** FactSpark's `article-body-present` regex passes on steps 1-6 (where `full_article_content` propagates) and fails on step 7 (different schema) — six passes plus one fail per run is a real eval signature, and a future regression that breaks propagation surfaces immediately. For the resume-tailor adapter, the equivalent is an adapter-derived `_company` field flattened onto every step's outputs (including skipped ones), which produces an all-pass baseline that catches propagation regressions cleanly.
+**Convention: pick step-level scorers that produce a meaningful pass/fail signal, not all-pass-or-all-fail.** FactSpark's `article-body-present` regex passes on steps 1-6 (where `full_article_content` propagates) and fails on step 7 (different schema) — six passes plus one fail per run is a real eval signature, and a future regression that breaks propagation surfaces immediately. For the resume-tailor adapter, the equivalent is an adapter-derived `_company` field flattened onto every step's outputs, which produces an all-passing baseline on the steps that ran (steps with `status="skipped"` are auto-skipped by the runner — see "Runner skip semantics" below).
 
-**Convention: budget scorers use `on_missing="skip"` when cost / latency data isn't available.** Both reference pipelines run inside Claude Code, which doesn't currently expose per-agent usage telemetry to user code — see the "Cost capture status" section in pipewise's README for the full deferral story. Adapters set `cost_usd` / `latency_ms` to `None` and rely on `on_missing="skip"` so the budget scorers register the *intent* without producing fake failures. When telemetry becomes available, the only change needed is `on_missing="fail"`.
+**Convention: use `applies_to_step_ids` to scope step scorers honestly.** A scorer that only makes sense on certain step types (e.g., a regex against `full_article_content` that step 7 doesn't carry) should declare its scope via the `applies_to_step_ids` kwarg rather than letting failures pile up on out-of-scope steps:
+
+```python
+RegexScorer(
+    field="full_article_content",
+    pattern=r".{100,}",
+    name="article-body-present",
+    applies_to_step_ids=["analyze", "enhance_entities", "enhance_content",
+                         "enhance_source", "stupid_meter",
+                         "enhance_analytics_ui"],  # excludes "verify_claims"
+)
+```
+
+The runner emits `status="skipped"` for any step not listed, without invoking the scorer. Reports stay readable: "this scorer covered six of seven steps" is a real eval shape, where the alternative "every step shows the scorer passed" was incorrect when step 7 had no `full_article_content` to validate. See `docs/scorers.md` for the full skipped-state semantics.
+
+**Convention: budget scorers use `on_missing="skip"` when cost / latency data isn't available.** Both reference pipelines run inside Claude Code, which doesn't currently expose per-agent usage telemetry to user code — see the "Cost capture status" section in pipewise's README for the full deferral story. Adapters set `cost_usd` / `latency_ms` to `None` and rely on `on_missing="skip"` so the budget scorers emit `status="skipped"` (no signal) instead of producing fake passes. When telemetry becomes available, the only change needed is `on_missing="fail"`.
+
+### Runner skip semantics
+
+Two skip behaviors the runner handles automatically:
+
+1. **Out-of-scope steps** — if a step scorer declares `applies_to_step_ids=[...]`, the runner emits `status="skipped"` for steps whose `step_id` isn't listed.
+2. **Steps with `status="skipped"`** — when an adapter marks a step skipped (e.g., a branching pipeline that didn't execute one branch), the runner auto-skips every scorer for that step.
+
+In both cases the scorer's `score()` body is never invoked. Failed steps (`status="failed"`) DO get scored — partial outputs may carry signal worth checking.
+
+This means adapters do not need to filter scorers or step lists themselves to express scope. Declare intent on the scorer (`applies_to_step_ids`) or on the step (`status="skipped"`); the runner does the rest.
 
 ## Cost / latency / tokens
 

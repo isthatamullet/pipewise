@@ -8,6 +8,16 @@ Until v1.0, **minor and patch versions may include breaking changes** — pipewi
 
 ## [Unreleased]
 
+> **Heads-up — wire-format break (pre-1.0).** The `ScoreResult` schema now
+> uses a tri-state `status: Literal["passed","failed","skipped"]` instead of
+> `passed: bool`, and `score` is `float | None`. `EvalReport` JSON files
+> written before this change cannot be loaded by post-change versions; re-run
+> `pipewise eval` to regenerate them. `ScoreDiffEntry` (the JSON shape of
+> `pipewise diff --format json`) similarly renames `passed_a/passed_b` to
+> `status_a/status_b`. Adopters who consume `pipewise diff`'s JSON output
+> directly will need to update their parsing. Pre-1.0 schema flips are
+> expected; the v1.0 contract will be stable.
+
 ### Added
 
 - **`pipewise.ci.github_action.render_pr_comment()`** — pure-Python renderer that produces a sticky-comment markdown body from an `EvalReport` (and optional baseline). Reuses `pipewise.runner.diff.compute_diff` rather than reinventing diffing. Output includes a verdict line (`✅` / `⚠️` / `❌` / `🆕`), scorer × step rollup table with right-aligned numeric columns and a signed Δ column, newly-failing-checks `<details>` block when regressions exist, full per-case `<details>`, and a footer with the short SHA + pipewise version. (#40)
@@ -17,6 +27,8 @@ Until v1.0, **minor and patch versions may include breaking changes** — pipewi
 - **`CODE_OF_CONDUCT.md`** — Contributor Covenant 2.1, drop-in template with `hello@pipewise.dev` as the enforcement contact. (#46)
 - **`SECURITY.md`** — vulnerability reporting policy. Leads with GitHub Security Advisories as the preferred private channel; email fallback to `security@pipewise.dev`. Pre-1.0 supported-versions stance, best-effort response timeline (acknowledgment within 2 business days, initial assessment within 5), brief coordinated-disclosure process, and an explicit out-of-scope section. (#48)
 - **`docs/scorers.md`** — new "Reading `report.json`" section covering the report shape (`step_scores` / `run_scores` naming, `result.{score, passed, reasoning, metadata}` nesting), the explicit reports-don't-carry-step-outputs note with a side-by-side report+dataset code recipe, and the aggregation-helper methods on `EvalReport`. New "What `pipewise diff` answers (and what it doesn't)" subsection clarifying that `diff` is keyed on `(run_id, step_id, scorer_name)` triples — useful for "did rerunning the same dataset surface a regression?" but not for "is my pipeline trending better over time?" Both additions surfaced by live-fire dogfooding on FactSpark.
+- **`docs/scorers.md`** — new "Skipped scorers and `applies_to_step_ids`" section documenting the three places a scorer can emit `status="skipped"` (out-of-scope step, upstream skipped step, budget `on_missing="skip"`), a worked example of `applies_to_step_ids` scoping a regex to specific step types, and the CI behavior on `passed → skipped` transitions (default: not a regression; `--strict` opts into stricter behavior). "Reading `report.json`" updated to reflect the new schema fields. "Writing your own scorer" updated with the `applies_to_step_ids` kwarg pattern.
+- **`docs/adapter-guide.md`** — new convention guidance on `applies_to_step_ids` for scoping step scorers, plus a "Runner skip semantics" subsection documenting the two automatic-skip paths (out-of-scope steps via `applies_to_step_ids`, and steps with `status="skipped"`).
 - **`pipewise eval`** — failure-clustering hint in the summary output. When more than one score fails on the same `(step_id, scorer_name)`, the eval prints a `Top failure: N of <step>/<scorer> (<reason>)` line so adopters can spot patterns without drilling into `report.json`. Suppressed when failures don't cluster (each failure is unique). Reasoning longer than 80 characters is truncated with `...`.
 - **`pipewise inspect --keys`** — render inputs/outputs as a top-level structural summary (`'key': <type-summary>`) instead of value-truncated previews. Each entry shows the type and, for containers, the size: `'article_metadata': dict[7], 'extracted_claims': list[15], 'full_article_content': str`. Designed for real-pipeline runs where steps share a lot of common content — the default value-truncated previews can look identical across steps when leading bytes match (e.g., enrichment pipelines that copy a base dict forward); `--keys` reveals what each step actually contributed. Mutually exclusive with `--full`; supplying both raises a usage error.
 - **`pipewise diff --strict`** — opt-in CLI flag that treats `passed → skipped` transitions as regressions for exit-code purposes. Useful when `applies_to_step_ids` scope narrowing should require explicit acknowledgment instead of silently passing CI. Default behavior is unchanged: only `passed → failed` transitions trip the non-zero exit code.
