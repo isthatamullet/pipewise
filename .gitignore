@@ -5,6 +5,12 @@
 # Local-only Claude convention overlay (kept at root for Claude Code to load).
 CLAUDE.local.md
 
+# Local-only Claude tooling — agents and slash commands kept project-local
+# but private (sibling to CLAUDE.local.md pattern). Public-facing review
+# practices live in SECURITY.md / CODE_OF_CONDUCT.md, not in tooling files.
+.claude/agents/
+.claude/commands/
+
 # Archived planning transcript — grep/human reference only, do not load into Claude
 *-FULL-TRANSCRIPT.txt
 
@@ -45,5 +51,5 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Claude Code harness runtime state (not the project-committed agents / commands)
+# Claude Code harness runtime state
 .claude/scheduled_tasks.lock

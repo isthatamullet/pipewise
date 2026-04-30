@@ -95,18 +95,16 @@ lives in `CLAUDE.local.md`.
   layout. Use `Path.home()` or relative paths in source.
 - **Never paraphrase content from the private folder** into public
   files.
-- **Run the `privacy-reviewer` subagent**
-  (`.claude/agents/privacy-reviewer.md`) before any commit touching
-  public docs (README, this file, `docs/`, root markdown), and
-  before any force-push.
+- **Run a privacy review pass** before any commit touching public
+  docs (README, this file, `docs/`, root markdown), and before any
+  force-push. Specific tooling lives in maintainer-private context.
 - **Don't bypass the pre-commit hook** (`git commit --no-verify`)
   without explicit user approval AND surfacing what's being bypassed.
 
 The pre-commit and pre-push hooks (in `.git/hooks/`, locally
-installed) are the safety net for accidental staging. The
-`privacy-reviewer` subagent is the safety net for context-aware
-leaks. A weekly remote sweep agent catches anything that slipped
-through both.
+installed) are the safety net for accidental staging. A
+context-aware review pass catches what regex can't. A weekly
+remote sweep catches anything that slipped through both.
 
 ## Communication Channels
 
