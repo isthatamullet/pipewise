@@ -77,8 +77,21 @@ def inspect_cmd(
         bool,
         typer.Option("--full", help="Show full inputs/outputs without truncation."),
     ] = False,
+    keys: Annotated[
+        bool,
+        typer.Option(
+            "--keys",
+            help="Show inputs/outputs as top-level structure (key + type/size) "
+            "instead of value-truncated previews. Useful for real-pipeline runs "
+            "where steps share a lot of common content. Mutually exclusive with --full.",
+        ),
+    ] = False,
 ) -> None:
     """Pretty-print a single PipelineRun JSON file."""
+    if full and keys:
+        typer.echo("Error: --full and --keys are mutually exclusive.", err=True)
+        raise typer.Exit(code=_USAGE_ERROR_EXIT_CODE)
+
     if not run_path.exists():
         typer.echo(f"Error: file not found: {run_path}", err=True)
         raise typer.Exit(code=_USAGE_ERROR_EXIT_CODE)
@@ -96,7 +109,7 @@ def inspect_cmd(
     if fmt == "json":
         typer.echo(run.model_dump_json(indent=2))
     elif fmt == "text":
-        typer.echo(format_run(run, full=full))
+        typer.echo(format_run(run, full=full, keys=keys))
     else:
         typer.echo(
             f"Error: unknown --format value: {fmt!r}. Use 'text' or 'json'.",

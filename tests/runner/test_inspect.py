@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from pipewise import PipelineRun, StepExecution
@@ -104,6 +105,49 @@ class TestFormatRun:
         )
         assert "Totals:" not in format_run(run)
 
+    def test_keys_mode_renders_top_level_structure(self) -> None:
+        # Real-pipeline-shaped step: nested dict + list + scalar.
+        outputs = {
+            "article_metadata": {"title": "T", "source": "BBC", "author": "X"},
+            "extracted_claims": [{"id": 1}, {"id": 2}, {"id": 3}],
+            "full_article_content": "lots of text here " * 100,
+            "score": 7,
+        }
+        out = format_run(_run([_step(outputs=outputs)]), keys=True)
+        assert "article_metadata: dict[3]" in out
+        assert "extracted_claims: list[3]" in out
+        assert "full_article_content: str" in out
+        assert "score: int" in out
+        # Values must NOT appear in keys mode.
+        assert "BBC" not in out
+        assert "lots of text here" not in out
+
+    def test_keys_mode_handles_empty_dict(self) -> None:
+        # Build a step with explicitly-empty outputs (bypassing _step's
+        # `outputs or default` falsy-coalesce so we actually get `{}`).
+        empty_step = StepExecution(
+            step_id="s1",
+            step_name="S1",
+            started_at=NOW,
+            completed_at=NOW + timedelta(seconds=1),
+            status="completed",
+            outputs={},
+        )
+        out = format_run(_run([empty_step]), keys=True)
+        # Empty outputs render as `{}` (same as the default mode).
+        assert "outputs: {}" in out
+
+    def test_keys_mode_handles_none_and_bool_and_float(self) -> None:
+        outputs = {"missing": None, "flag": True, "ratio": 0.42}
+        out = format_run(_run([_step(outputs=outputs)]), keys=True)
+        assert "missing: None" in out
+        assert "flag: bool" in out
+        assert "ratio: float" in out
+
+    def test_keys_and_full_together_raise(self) -> None:
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            format_run(_run([_step()]), full=True, keys=True)
+
 
 class TestInspectCommand:
     def test_inspect_prints_text_summary_by_default(self, tmp_path: Path) -> None:
@@ -163,3 +207,31 @@ class TestInspectCommand:
         assert result.exit_code == 2
         combined = result.stdout + (result.stderr or "")
         assert "unknown" in combined.lower()
+
+    def test_inspect_keys_flag_renders_structural_summary(self, tmp_path: Path) -> None:
+        outputs = {
+            "article_metadata": {"a": 1, "b": 2, "c": 3},
+            "claims": [{"id": 1}, {"id": 2}],
+            "score": 42,
+        }
+        run = _run([_step(outputs=outputs)])
+        run_path = tmp_path / "run.json"
+        run_path.write_text(run.model_dump_json())
+
+        result = runner.invoke(app, ["inspect", str(run_path), "--keys"])
+
+        assert result.exit_code == 0, result.stdout
+        assert "article_metadata: dict[3]" in result.stdout
+        assert "claims: list[2]" in result.stdout
+        assert "score: int" in result.stdout
+
+    def test_inspect_keys_and_full_together_is_clear_error(self, tmp_path: Path) -> None:
+        run = _run([_step()])
+        run_path = tmp_path / "run.json"
+        run_path.write_text(run.model_dump_json())
+
+        result = runner.invoke(app, ["inspect", str(run_path), "--keys", "--full"])
+
+        assert result.exit_code == 2
+        combined = result.stdout + (result.stderr or "")
+        assert "mutually exclusive" in combined.lower()
