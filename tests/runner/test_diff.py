@@ -25,6 +25,10 @@ def _result(score: float, passed: bool) -> ScoreResult:
     return ScoreResult(status="passed" if passed else "failed", score=score)
 
 
+def _skipped() -> ScoreResult:
+    return ScoreResult(status="skipped", reasoning="test skip")
+
+
 def _report(
     *,
     runs: list[RunEvalResult],
@@ -89,8 +93,8 @@ class TestComputeDiff:
         assert entry.run_id == "run_1"
         assert entry.step_id is None
         assert entry.scorer_name == "s"
-        assert entry.passed_a is True
-        assert entry.passed_b is False
+        assert entry.status_a == "passed"
+        assert entry.status_b == "failed"
         assert diff.has_regressions()
 
     def test_failing_to_passing_is_improvement(self) -> None:
@@ -189,6 +193,71 @@ class TestComputeDiff:
         assert len(diff.regressions) == 2
 
 
+class TestSkippedTransitions:
+    """Coverage for the 5 transitions involving the `skipped` state."""
+
+    def test_passed_to_skipped_goes_to_newly_skipped(self) -> None:
+        a = _report(
+            runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_result(1.0, True))])]
+        )
+        b = _report(runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_skipped())])])
+        diff = compute_diff(a, b)
+        assert len(diff.regressions) == 0
+        assert len(diff.newly_skipped) == 1
+        entry = diff.newly_skipped[0]
+        assert entry.status_a == "passed"
+        assert entry.status_b == "skipped"
+        assert entry.score_b is None
+        # NOT a regression by default — narrowing scope is intentional.
+        assert not diff.has_regressions()
+        # IS a strict regression — `--strict` refuses scope narrowing.
+        assert diff.has_strict_regressions()
+
+    def test_failed_to_skipped_goes_to_newly_skipped(self) -> None:
+        a = _report(
+            runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_result(0.0, False))])]
+        )
+        b = _report(runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_skipped())])])
+        diff = compute_diff(a, b)
+        assert len(diff.improvements) == 0
+        assert len(diff.newly_skipped) == 1
+        # `failed → skipped` is NOT a strict regression — scorer wasn't passing
+        # before either, so narrowing scope here doesn't mask anything good.
+        assert not diff.has_strict_regressions()
+
+    def test_skipped_to_passed_goes_to_newly_running(self) -> None:
+        a = _report(runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_skipped())])])
+        b = _report(
+            runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_result(1.0, True))])]
+        )
+        diff = compute_diff(a, b)
+        assert len(diff.improvements) == 0
+        assert len(diff.newly_running) == 1
+        assert diff.newly_running[0].status_a == "skipped"
+        assert diff.newly_running[0].status_b == "passed"
+
+    def test_skipped_to_failed_goes_to_newly_running(self) -> None:
+        a = _report(runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_skipped())])])
+        b = _report(
+            runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_result(0.0, False))])]
+        )
+        diff = compute_diff(a, b)
+        # `skipped → failed` is NOT a regression by default — was no-signal,
+        # now there's a real failing signal, but scope changed deliberately.
+        assert len(diff.regressions) == 0
+        assert len(diff.newly_running) == 1
+        # NOT strict-regression-class either — `--strict` only catches
+        # `passed → skipped`. Skipped → failed is "new visibility," not
+        # "intentional scope narrowing."
+        assert not diff.has_strict_regressions()
+
+    def test_skipped_to_skipped_is_ignored(self) -> None:
+        a = _report(runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_skipped())])])
+        b = _report(runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_skipped())])])
+        diff = compute_diff(a, b)
+        assert diff.total_changes() == 0
+
+
 class TestFormatDiff:
     def test_renders_summary_line(self) -> None:
         out = format_diff(ReportDiff())
@@ -262,3 +331,45 @@ class TestDiffCommand:
         assert result.exit_code == 2
         combined = result.stdout + (result.stderr or "")
         assert "file not found" in combined.lower()
+
+    def test_passed_to_skipped_exits_zero_by_default(self, tmp_path: Path) -> None:
+        a = _report(
+            runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_result(1.0, True))])]
+        )
+        b = _report(runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_skipped())])])
+        a_path = tmp_path / "a.json"
+        b_path = tmp_path / "b.json"
+        self._write(a_path, a)
+        self._write(b_path, b)
+
+        result = runner.invoke(app, ["diff", str(a_path), str(b_path)])
+        assert result.exit_code == 0
+        assert "Newly skipped" in result.stdout
+
+    def test_strict_flag_treats_passed_to_skipped_as_regression(self, tmp_path: Path) -> None:
+        a = _report(
+            runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_result(1.0, True))])]
+        )
+        b = _report(runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_skipped())])])
+        a_path = tmp_path / "a.json"
+        b_path = tmp_path / "b.json"
+        self._write(a_path, a)
+        self._write(b_path, b)
+
+        result = runner.invoke(app, ["diff", "--strict", str(a_path), str(b_path)])
+        assert result.exit_code == 1
+
+    def test_strict_flag_does_not_trip_on_failed_to_skipped(self, tmp_path: Path) -> None:
+        # `failed → skipped` is not strict-regression-class — the scorer
+        # wasn't passing before, so narrowing scope masks nothing.
+        a = _report(
+            runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_result(0.0, False))])]
+        )
+        b = _report(runs=[_run(run_scores=[RunScoreEntry(scorer_name="s", result=_skipped())])])
+        a_path = tmp_path / "a.json"
+        b_path = tmp_path / "b.json"
+        self._write(a_path, a)
+        self._write(b_path, b)
+
+        result = runner.invoke(app, ["diff", "--strict", str(a_path), str(b_path)])
+        assert result.exit_code == 0

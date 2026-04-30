@@ -266,7 +266,7 @@ def test_diff_surfaces_regressions_between_two_real_eval_reports(tmp_path: Path)
     # and now fails in B because the pattern doesn't match anywhere).
     # Step 7 was already failing in A (no `full_article_content`), so it
     # stays failing in B — that's not a regression.
-    assert all(e.passed_a and not e.passed_b for e in diff.regressions)
+    assert all(e.status_a == "passed" and e.status_b == "failed" for e in diff.regressions)
     regressed_step_ids = {e.step_id for e in diff.regressions}
     assert "analyze" in regressed_step_ids  # step 1
     assert "verify_claims" not in regressed_step_ids  # step 7 was already failing
