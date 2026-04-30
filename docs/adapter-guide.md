@@ -354,9 +354,9 @@ RegexScorer(
     field="full_article_content",
     pattern=r".{100,}",
     name="article-body-present",
-    applies_to_step_ids=["analyze", "enhance_with_research", "stupid_meter",
-                         "enhance_analytics_ui", "tweet_generation",
-                         "summarize_for_audio"],  # excludes "verify_claims"
+    applies_to_step_ids=["analyze", "enhance_entities", "enhance_content",
+                         "enhance_source", "stupid_meter",
+                         "enhance_analytics_ui"],  # excludes "verify_claims"
 )
 ```
 
