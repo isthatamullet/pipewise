@@ -18,6 +18,10 @@ Until v1.0, **minor and patch versions may include breaking changes** — pipewi
 - **`SECURITY.md`** — vulnerability reporting policy. Leads with GitHub Security Advisories as the preferred private channel; email fallback to `security@pipewise.dev`. Pre-1.0 supported-versions stance, best-effort response timeline (acknowledgment within 2 business days, initial assessment within 5), brief coordinated-disclosure process, and an explicit out-of-scope section. (#48)
 - **`docs/scorers.md`** — new "Reading `report.json`" section covering the report shape (`step_scores` / `run_scores` naming, `result.{score, passed, reasoning, metadata}` nesting), the explicit reports-don't-carry-step-outputs note with a side-by-side report+dataset code recipe, and the aggregation-helper methods on `EvalReport`. New "What `pipewise diff` answers (and what it doesn't)" subsection clarifying that `diff` is keyed on `(run_id, step_id, scorer_name)` triples — useful for "did rerunning the same dataset surface a regression?" but not for "is my pipeline trending better over time?" Both additions surfaced by live-fire dogfooding on FactSpark.
 
+### Added
+
+- **`pipewise eval`** — failure-clustering hint in the summary output. When more than one score fails on the same `(step_id, scorer_name)`, the eval prints a `Top failure: N of <step>/<scorer> (<reason>)` line so adopters can spot patterns without drilling into `report.json`. Suppressed when failures don't cluster (each failure is unique). Reasoning longer than 80 characters is truncated with `...`.
+
 ### Changed
 
 - **`pipewise eval --adapter`** — no longer required when `--scorers <toml>` is supplied. Previously the flag was structurally required by Typer but unused by the explicit-scorers branch; the inconsistency was surfaced via Gemini Code Assist on PR #56. Backward-compatible — existing scripts that pass `--adapter` continue to work; new invocations may omit it when `--scorers` is present. Supplying neither flag now raises a clear usage error (exit code 2).

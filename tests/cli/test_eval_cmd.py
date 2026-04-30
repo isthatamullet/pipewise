@@ -291,6 +291,149 @@ class TestEvalCommand:
         assert result.exit_code == 0, result.stdout
         assert "1/1 passing" in result.stdout
 
+    def test_multi_run_failure_cluster_surfaces_top_failure_line(
+        self, tmp_path: Path, adapter_with_failing_defaults: str
+    ) -> None:
+        # 3 runs × always-fail step scorer = 3 identical failures.
+        # The eval summary should emit a "Top failure: 3 of s1/always-fail (nope)" line.
+        dataset = tmp_path / "ds.jsonl"
+        _write_dataset(
+            dataset,
+            [_make_run("run_1"), _make_run("run_2"), _make_run("run_3")],
+        )
+
+        result = runner.invoke(
+            app,
+            [
+                "eval",
+                "--dataset",
+                str(dataset),
+                "--adapter",
+                adapter_with_failing_defaults,
+                "--output-root",
+                str(tmp_path / "reports"),
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "0/3 passing" in result.stdout
+        assert "Top failure:" in result.stdout
+        assert "3 of s1/always-fail" in result.stdout
+        assert "nope" in result.stdout
+
+    def test_single_failure_suppresses_top_failure_line(
+        self, tmp_path: Path, adapter_with_failing_defaults: str
+    ) -> None:
+        # Only 1 run → top cluster has count=1 → no "Top failure" line
+        # (clustering hint only adds value when there's an actual cluster).
+        dataset = tmp_path / "ds.jsonl"
+        _write_dataset(dataset, [_make_run("run_1")])
+
+        result = runner.invoke(
+            app,
+            [
+                "eval",
+                "--dataset",
+                str(dataset),
+                "--adapter",
+                adapter_with_failing_defaults,
+                "--output-root",
+                str(tmp_path / "reports"),
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "0/1 passing" in result.stdout
+        assert "Top failure:" not in result.stdout
+
+    def test_run_scorer_cluster_omits_step_id_from_label(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A run scorer that always fails should produce a cluster keyed on
+        # the scorer name only (no step_id) — output line shows "N of <name>"
+        # without a step prefix.
+        from pipewise import ScoreResult
+
+        class _AlwaysFailRunScorer:
+            name = "run-fail"
+
+            def score(self, run: PipelineRun) -> ScoreResult:
+                return ScoreResult(score=0.0, passed=False, reasoning="run-level-fail")
+
+        def default_scorers() -> tuple[list[object], list[object]]:
+            return ([], [_AlwaysFailRunScorer()])
+
+        name = "fake_run_scorer_fail"
+        _install_adapter(name, {"load_run": lambda p: None, "default_scorers": default_scorers})
+        monkeypatch.setitem(sys.modules, name, sys.modules[name])
+
+        dataset = tmp_path / "ds.jsonl"
+        _write_dataset(dataset, [_make_run("run_1"), _make_run("run_2")])
+
+        result = runner.invoke(
+            app,
+            [
+                "eval",
+                "--dataset",
+                str(dataset),
+                "--adapter",
+                name,
+                "--output-root",
+                str(tmp_path / "reports"),
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "Top failure: 2 of run-fail" in result.stdout
+        # No step_id slash for run-level scorers.
+        assert "/run-fail" not in result.stdout
+        assert "run-level-fail" in result.stdout
+
+    def test_long_reasoning_is_truncated(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Reasoning longer than 80 chars should appear with a "..." suffix.
+        from pipewise import ScoreResult
+
+        long_reason = "x" * 200
+
+        class _LongReasonStepScorer:
+            name = "long-reason"
+
+            def score(
+                self, actual: StepExecution, expected: StepExecution | None = None
+            ) -> ScoreResult:
+                return ScoreResult(score=0.0, passed=False, reasoning=long_reason)
+
+        def default_scorers() -> tuple[list[object], list[object]]:
+            return ([_LongReasonStepScorer()], [])
+
+        name = "fake_long_reason"
+        _install_adapter(name, {"load_run": lambda p: None, "default_scorers": default_scorers})
+        monkeypatch.setitem(sys.modules, name, sys.modules[name])
+
+        dataset = tmp_path / "ds.jsonl"
+        _write_dataset(dataset, [_make_run("run_1"), _make_run("run_2")])
+
+        result = runner.invoke(
+            app,
+            [
+                "eval",
+                "--dataset",
+                str(dataset),
+                "--adapter",
+                name,
+                "--output-root",
+                str(tmp_path / "reports"),
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "Top failure:" in result.stdout
+        assert "..." in result.stdout
+        # The full 200-char reasoning should NOT be in the summary line.
+        assert long_reason not in result.stdout
+
     def test_neither_adapter_nor_scorers_is_clear_error(self, tmp_path: Path) -> None:
         dataset = tmp_path / "ds.jsonl"
         _write_dataset(dataset, [_make_run("run_1")])
