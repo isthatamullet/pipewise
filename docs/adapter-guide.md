@@ -21,6 +21,130 @@ your-pipeline-repo/
             └── test_adapter.py
 ```
 
+## Smoke-test adapter in 5 minutes
+
+Before you wire an adapter into your real pipeline, it's worth confirming pipewise installs and runs end-to-end on your machine. This section walks through a self-contained smoke test — two short files in `/tmp/`, three synthetic runs, one clean pass.
+
+```python
+# /tmp/smoke/adapter.py
+"""Smoke-test adapter — a 3-step toy pipeline. Real adapters are larger
+and live in their pipeline's repo (see "Why the adapter lives in your
+repo" below); this one is intentionally tiny."""
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+from pipewise import PipelineRun, RunScorer, StepExecution, StepScorer
+from pipewise.scorers.budget import LatencyBudgetScorer
+from pipewise.scorers.regex import RegexScorer
+
+
+def load_run(path: Path) -> PipelineRun:
+    """Translate one raw run file into a canonical PipelineRun."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    base = datetime.now(UTC)
+
+    def step(idx: int, step_id: str, name: str) -> StepExecution:
+        return StepExecution(
+            step_id=step_id,
+            step_name=name,
+            started_at=base + timedelta(seconds=idx),
+            completed_at=base + timedelta(seconds=idx + 1),
+            status="completed",
+            latency_ms=1000,
+            outputs={"status": "ok", "topic": raw["topic"]},
+        )
+
+    return PipelineRun(
+        run_id=raw["run_id"],
+        pipeline_name="smoke-test",
+        started_at=base,
+        completed_at=base + timedelta(seconds=3),
+        status="completed",
+        total_latency_ms=3000,
+        steps=[
+            step(0, "load_article", "Load Article"),
+            step(1, "summarize", "Summarize"),
+            step(2, "check_hallucinations", "Check Hallucinations"),
+        ],
+        adapter_name="smoke-test-adapter",
+        adapter_version="0.1.0",
+    )
+
+
+def default_scorers() -> tuple[list[StepScorer], list[RunScorer]]:
+    """One step scorer + one run scorer — both pass cleanly on the data above."""
+    return (
+        [RegexScorer(field="status", pattern=r"^ok$", name="status-ok")],
+        [LatencyBudgetScorer(budget_ms=10_000, name="latency-cap")],
+    )
+```
+
+```python
+# /tmp/smoke/build_dataset.py
+"""Materialize synthetic PipelineRuns into a JSONL dataset for `pipewise eval`."""
+import json
+from pathlib import Path
+
+from adapter import load_run
+
+# Synthetic raw run inputs (would normally be your pipeline's actual outputs).
+runs_dir = Path("runs/")
+runs_dir.mkdir(exist_ok=True)
+for fx in [
+    {"run_id": "run_001", "topic": "weather-forecast"},
+    {"run_id": "run_002", "topic": "earnings-report"},
+    {"run_id": "run_003", "topic": "product-launch"},
+]:
+    (runs_dir / f"{fx['run_id']}.json").write_text(json.dumps(fx))
+
+# Call adapter.load_run on each raw file, write JSONL — one PipelineRun per line.
+with Path("dataset.jsonl").open("w", encoding="utf-8") as out:
+    for raw_path in sorted(runs_dir.glob("*.json")):
+        out.write(load_run(raw_path).model_dump_json() + "\n")
+```
+
+Then run it:
+
+```bash
+mkdir -p /tmp/smoke && cd /tmp/smoke
+# (paste the two files above into adapter.py and build_dataset.py)
+python build_dataset.py
+PYTHONPATH=. pipewise eval --adapter adapter --dataset dataset.jsonl
+```
+
+`PYTHONPATH=.` is required so pipewise can `import adapter` from the current directory; in a real adapter installed via `pip install -e .` (see the package layout below), this isn't needed. Expected output:
+
+```
+Evaluated 3 run(s) with 1 step scorer(s) + 1 run scorer(s).
+Scores: 12/12 passing (0 failing).
+Report: pipewise/reports/<timestamp>_dataset/report.json
+```
+
+Bonus — inspect a single run to see pipewise's pretty-printer output:
+
+```bash
+head -n 1 dataset.jsonl > one-run.json
+pipewise inspect one-run.json
+```
+
+```
+Run:      run_001
+Pipeline: smoke-test
+Adapter:  smoke-test-adapter@0.1.0
+Status:   completed  Started: ...  Duration: 3.00s
+
+Steps (3):
+  1. load_article [completed] latency=1000ms  (1.00s)
+     inputs:  {}
+     outputs: {'status': 'ok', 'topic': 'weather-forecast'}
+  ...
+```
+
+If both commands succeed, pipewise is installed correctly and the adapter contract is intact. Now you're ready to write a real adapter for your pipeline — read on.
+
 ## Why the adapter lives in your repo, not in pipewise
 
 This is the architectural commitment that makes pipewise's "general framework" claim verifiable. Your pipeline depends on pipewise (via `pip install pipewise`); pipewise has zero knowledge of your pipeline. A reviewer cloning the pipewise repo sees no traces of any specific pipeline in the core code, and the `examples/` directory only links to external adapter implementations.
