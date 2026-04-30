@@ -291,8 +291,24 @@ def diff_cmd(
         str,
         typer.Option("--format", help="Output format: 'text' (default) or 'json'."),
     ] = "text",
+    strict: Annotated[
+        bool,
+        typer.Option(
+            "--strict",
+            help=(
+                "Treat `passed → skipped` transitions as regressions for exit-code "
+                "purposes. Useful when scope narrowing via `applies_to_step_ids` "
+                "should require explicit acknowledgment."
+            ),
+        ),
+    ] = False,
 ) -> None:
-    """Diff two EvalReport files. Exits non-zero if there are regressions."""
+    """Diff two EvalReport files. Exits non-zero if there are regressions.
+
+    By default, regressions are `passed → failed` transitions only. The
+    `--strict` flag widens the gate to also include `passed → skipped`
+    transitions (intentional scope narrowing trips CI red).
+    """
     a = _load_report(report_a)
     b = _load_report(report_b)
 
@@ -309,7 +325,8 @@ def diff_cmd(
         )
         raise typer.Exit(code=_USAGE_ERROR_EXIT_CODE)
 
-    if diff.has_regressions():
+    fails_gate = diff.has_strict_regressions() if strict else diff.has_regressions()
+    if fails_gate:
         raise typer.Exit(code=_REGRESSION_EXIT_CODE)
 
 
