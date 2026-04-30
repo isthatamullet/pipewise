@@ -122,14 +122,29 @@ jobs:
         run: |
           # Pre-v1.0 / pre-PyPI install — pin to a SHA or tag in CI.
           pip install git+https://github.com/isthatamullet/pipewise.git@main
-          # 1. Run your pipeline against the canonical dataset.
-          python -m my_pipeline.run --dataset golden.jsonl --output runs/
 
-          # 2. Run pipewise eval on the produced runs.
+          # 1. Run your pipeline against your canonical inputs (shape is
+          #    your pipeline's concern; this is just an example invocation).
+          python -m my_pipeline.run --inputs canonical-inputs.jsonl --output-dir runs/
+
+          # 2. Materialize PipelineRuns: call your adapter's load_run once
+          #    per completed run and write the results as JSONL — one
+          #    serialized PipelineRun per line. See `docs/adapter-guide.md`
+          #    "Where PipelineRun JSONL files come from" for the canonical
+          #    materialization-script pattern.
+          python -m my_pipeline_pipewise.build_dataset \
+            --runs-dir runs/ --output runs.jsonl
+
+          # 3. Run pipewise eval on the JSONL of PipelineRuns. Pipewise
+          #    writes to a timestamped subdirectory under --output-root;
+          #    we copy the produced file to a stable path for the artifact
+          #    upload below. The per-adapter segment under reports/ keeps
+          #    the glob unambiguous in multi-adapter repos.
           pipewise eval \
             --adapter my_pipeline_pipewise.adapter \
-            --dataset golden.jsonl \
-            --output report.json
+            --dataset runs.jsonl \
+            --output-root reports/my_pipeline_pipewise/
+          cp reports/my_pipeline_pipewise/*/report.json report.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -207,11 +222,14 @@ jobs:
         run: |
           # Pre-v1.0 / pre-PyPI install — pin to a SHA or tag in CI.
           pip install git+https://github.com/isthatamullet/pipewise.git@main
-          python -m my_pipeline.run --dataset golden.jsonl --output runs/
+          python -m my_pipeline.run --inputs canonical-inputs.jsonl --output-dir runs/
+          python -m my_pipeline_pipewise.build_dataset \
+            --runs-dir runs/ --output runs.jsonl
           pipewise eval \
             --adapter my_pipeline_pipewise.adapter \
-            --dataset golden.jsonl \
-            --output report.json
+            --dataset runs.jsonl \
+            --output-root reports/my_pipeline_pipewise/
+          cp reports/my_pipeline_pipewise/*/report.json report.json
 
       - uses: actions/upload-artifact@v4
         with:
