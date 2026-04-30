@@ -70,13 +70,14 @@ class RunEvalResult(BaseModel):
         return [e.result for e in self.step_scores] + [e.result for e in self.run_scores]
 
     def all_passed(self) -> bool:
-        """True iff every score in this run passed.
+        """True iff no score in this run failed (skipped scores are ignored).
 
-        Note: vacuously True when no scorers ran. Consumers that want to
-        distinguish "all passed" from "nothing scored" should check
-        `len(self.all_results())` first.
+        Note: vacuously True when no scorers ran AND when every scorer was
+        skipped. Consumers that want to distinguish "all passed" from
+        "nothing scored" or "everything skipped" should check
+        `len(self.all_results())` and `skipped_score_count()` first.
         """
-        return all(r.passed for r in self.all_results())
+        return all(r.status != "failed" for r in self.all_results())
 
 
 class EvalReport(BaseModel):
@@ -125,10 +126,13 @@ class EvalReport(BaseModel):
         return sum(len(r.all_results()) for r in self.runs)
 
     def passing_score_count(self) -> int:
-        return sum(1 for r in self.all_results() if r.passed)
+        return sum(1 for r in self.all_results() if r.status == "passed")
 
     def failing_score_count(self) -> int:
-        return sum(1 for r in self.all_results() if not r.passed)
+        return sum(1 for r in self.all_results() if r.status == "failed")
+
+    def skipped_score_count(self) -> int:
+        return sum(1 for r in self.all_results() if r.status == "skipped")
 
     def passing_run_ids(self) -> list[str]:
         """`run_id`s where every scorer passed (vacuously includes runs

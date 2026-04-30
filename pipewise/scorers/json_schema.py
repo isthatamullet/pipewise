@@ -6,6 +6,7 @@ the first 5 validation errors with their JSON-pointer paths so debugging a
 regression doesn't require running the validator manually.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -25,6 +26,7 @@ class JsonSchemaScorer:
         schema: dict[str, Any],
         *,
         name: str | None = None,
+        applies_to_step_ids: Sequence[str] | None = None,
     ) -> None:
         validator_cls = validator_for(schema, default=Draft202012Validator)
         # Surface schema-level bugs (typo'd keywords, malformed `type`) at
@@ -33,6 +35,9 @@ class JsonSchemaScorer:
         self.schema = schema
         self.validator = validator_cls(schema)
         self.name = name or "json_schema"
+        self.applies_to_step_ids: Sequence[str] | None = (
+            tuple(applies_to_step_ids) if applies_to_step_ids is not None else None
+        )
 
     def score(
         self,
@@ -53,8 +58,8 @@ class JsonSchemaScorer:
             reasoning = "; ".join(messages)
 
         return ScoreResult(
+            status="passed" if passed else "failed",
             score=1.0 if passed else 0.0,
-            passed=passed,
             reasoning=reasoning,
             metadata={"error_count": len(errors)},
         )

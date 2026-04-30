@@ -22,7 +22,7 @@ runner = CliRunner()
 
 
 def _result(score: float, passed: bool) -> ScoreResult:
-    return ScoreResult(score=score, passed=passed)
+    return ScoreResult(status="passed" if passed else "failed", score=score)
 
 
 def _report(

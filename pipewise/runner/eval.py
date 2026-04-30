@@ -8,11 +8,17 @@ exception is caught, recorded as a failed `ScoreResult` with the exception
 message in `reasoning`, and the eval continues. Rationale: one flaky scorer on
 one step shouldn't tank a 1000-row dataset eval — users want to see the rest
 of the results.
+
+Skip semantics: the runner emits `status="skipped"` BEFORE invoking the scorer
+when (a) the scorer's `applies_to_step_ids` excludes this step, or (b) the
+step itself has `status="skipped"` (the upstream pipeline didn't execute it).
+A scorer's own decision to emit `"skipped"` is also honored — e.g., budget
+scorers with `on_missing="skip"`.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 
 from pipewise import __version__
@@ -32,8 +38,8 @@ def _safe_step_score(scorer: StepScorer, run: PipelineRun, step_idx: int) -> Sco
         return scorer.score(run.steps[step_idx])
     except Exception as exc:
         return ScoreResult(
+            status="failed",
             score=0.0,
-            passed=False,
             reasoning=f"{scorer.name} raised {type(exc).__name__}: {exc}",
         )
 
@@ -44,10 +50,37 @@ def _safe_run_score(scorer: RunScorer, run: PipelineRun) -> ScoreResult:
         return scorer.score(run)
     except Exception as exc:
         return ScoreResult(
+            status="failed",
             score=0.0,
-            passed=False,
             reasoning=f"{scorer.name} raised {type(exc).__name__}: {exc}",
         )
+
+
+def _resolve_step_score(scorer: StepScorer, run: PipelineRun, step_idx: int) -> ScoreResult:
+    """Decide whether to invoke the step scorer or short-circuit to `skipped`.
+
+    Two short-circuit cases produce a `skipped` result without calling the
+    scorer:
+    - `scorer.applies_to_step_ids` is set and the step's `step_id` is not in it.
+    - The step itself has `status="skipped"` (upstream pipeline didn't execute).
+
+    Failed steps DO get scored (they may have partial outputs worth checking).
+    """
+    step = run.steps[step_idx]
+    applies_to: Sequence[str] | None = getattr(scorer, "applies_to_step_ids", None)
+    if applies_to is not None and step.step_id not in applies_to:
+        return ScoreResult(
+            status="skipped",
+            score=None,
+            reasoning=f"step_id '{step.step_id}' not in applies_to_step_ids",
+        )
+    if step.status == "skipped":
+        return ScoreResult(
+            status="skipped",
+            score=None,
+            reasoning=f"step '{step.step_id}' status is 'skipped'; scorer not invoked",
+        )
+    return _safe_step_score(scorer, run, step_idx)
 
 
 def run_eval(
@@ -84,7 +117,7 @@ def run_eval(
                     StepScoreEntry(
                         step_id=step.step_id,
                         scorer_name=scorer.name,
-                        result=_safe_step_score(scorer, run, idx),
+                        result=_resolve_step_score(scorer, run, idx),
                     )
                 )
 

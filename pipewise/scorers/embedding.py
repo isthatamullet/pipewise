@@ -10,6 +10,7 @@ class doesn't pull in `sentence-transformers` (and its torch dependency,
 ~2GB). The `[embeddings]` extra in `pyproject.toml` opts users in.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 from pipewise.core.schema import StepExecution
@@ -47,6 +48,7 @@ class EmbeddingSimilarityScorer:
         threshold: float = 0.7,
         model_name: str = DEFAULT_MODEL,
         name: str | None = None,
+        applies_to_step_ids: Sequence[str] | None = None,
     ) -> None:
         if not field:
             raise ValueError("EmbeddingSimilarityScorer requires a non-empty field name")
@@ -56,6 +58,9 @@ class EmbeddingSimilarityScorer:
         self.threshold = threshold
         self.model_name = model_name
         self.name = name or f"embedding_similarity[{field}]"
+        self.applies_to_step_ids: Sequence[str] | None = (
+            tuple(applies_to_step_ids) if applies_to_step_ids is not None else None
+        )
         self._model: Any = None
 
     def _load_model(self) -> Any:
@@ -113,8 +118,8 @@ class EmbeddingSimilarityScorer:
         passed = score_value >= self.threshold
 
         return ScoreResult(
+            status="passed" if passed else "failed",
             score=score_value,
-            passed=passed,
             reasoning=(
                 None if passed else f"similarity {score_value:.3f} below threshold {self.threshold}"
             ),
@@ -127,8 +132,8 @@ class EmbeddingSimilarityScorer:
 
     def _fail(self, reasoning: str) -> ScoreResult:
         return ScoreResult(
+            status="failed",
             score=0.0,
-            passed=False,
             reasoning=reasoning,
             metadata={"threshold": self.threshold, "model": self.model_name},
         )

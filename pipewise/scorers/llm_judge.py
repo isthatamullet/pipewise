@@ -107,6 +107,7 @@ class LlmJudgeScorer:
         max_tokens: int = DEFAULT_MAX_TOKENS,
         api_key: str | None = None,
         name: str | None = None,
+        applies_to_step_ids: Sequence[str] | None = None,
     ) -> None:
         if not rubric or not rubric.strip():
             raise ValueError("rubric must be a non-empty string")
@@ -128,6 +129,9 @@ class LlmJudgeScorer:
         self.max_tokens = max_tokens
         self._api_key = api_key
         self.name = name or f"llm_judge[{model}]"
+        self.applies_to_step_ids: Sequence[str] | None = (
+            tuple(applies_to_step_ids) if applies_to_step_ids is not None else None
+        )
 
         self._client: Any = None
         self._cumulative_cost_usd: float = 0.0
@@ -327,8 +331,8 @@ class LlmJudgeScorer:
             reasoning = "\n".join(lines)
 
         return ScoreResult(
+            status="passed" if passed else "failed",
             score=avg_score,
-            passed=passed,
             reasoning=reasoning,
             metadata={
                 "model": self.model,

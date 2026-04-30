@@ -37,7 +37,7 @@ class TestJsonSchemaScorer:
             },
         }
         result = JsonSchemaScorer(schema=schema).score(_step({"title": "Hello", "rating": 80}))
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.score == 1.0
         assert result.reasoning is None
         assert result.metadata["error_count"] == 0
@@ -52,7 +52,7 @@ class TestJsonSchemaScorer:
             },
         }
         result = JsonSchemaScorer(schema=schema).score(_step({"title": "Hello"}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.0
         assert "rating" in (result.reasoning or "")
         assert result.metadata["error_count"] >= 1
@@ -63,7 +63,7 @@ class TestJsonSchemaScorer:
             "properties": {"rating": {"type": "integer"}},
         }
         result = JsonSchemaScorer(schema=schema).score(_step({"rating": "high"}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert "rating" in (result.reasoning or "")
 
     def test_nested_schema_valid(self) -> None:
@@ -83,7 +83,7 @@ class TestJsonSchemaScorer:
         result = JsonSchemaScorer(schema=schema).score(
             _step({"metadata": {"author": "T", "tags": ["a", "b"]}})
         )
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_nested_schema_invalid_path_in_reasoning(self) -> None:
         schema = {
@@ -97,7 +97,7 @@ class TestJsonSchemaScorer:
             },
         }
         result = JsonSchemaScorer(schema=schema).score(_step({"metadata": {}}))
-        assert result.passed is False
+        assert result.status == "failed"
         # Path should reference "metadata" so users see where it failed.
         assert "metadata" in (result.reasoning or "")
 
@@ -112,7 +112,7 @@ class TestJsonSchemaScorer:
         }
         # Subtitle absent — optional, so this should pass.
         result = JsonSchemaScorer(schema=schema).score(_step({"title": "T"}))
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_multiple_errors_truncated_in_reasoning(self) -> None:
         # Schema that produces many errors.
@@ -121,7 +121,7 @@ class TestJsonSchemaScorer:
             "required": ["a", "b", "c", "d", "e", "f", "g"],
         }
         result = JsonSchemaScorer(schema=schema).score(_step({}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.metadata["error_count"] == 7
         # Reasoning truncates at 5 errors with a "... N more" suffix.
         assert "more" in (result.reasoning or "")
@@ -143,4 +143,4 @@ class TestJsonSchemaScorer:
         actual = _step({"title": "Hello"})
         expected = _step({"title": "Different"})
         result = JsonSchemaScorer(schema={"type": "object"}).score(actual, expected)
-        assert result.passed is True
+        assert result.status == "passed"

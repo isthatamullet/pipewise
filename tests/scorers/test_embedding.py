@@ -103,7 +103,7 @@ class TestEmbeddingSimilarityScorer:
             _step({"text": "Order received"}),
             _step({"text": "Order placed"}),
         )
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.score > 0.9
 
     def test_dissimilar_text_scores_low(self) -> None:
@@ -118,7 +118,7 @@ class TestEmbeddingSimilarityScorer:
             _step({"text": "morning coffee"}),
             _step({"text": "submarine fleet"}),
         )
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.0
         assert "below threshold" in (result.reasoning or "")
 
@@ -129,7 +129,7 @@ class TestEmbeddingSimilarityScorer:
         )
         result = scorer.score(_step({"text": "a"}), _step({"text": "b"}))
         assert result.score == 0.0
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.metadata["raw_similarity"] == -1.0
 
     def test_threshold_boundary_passes(self) -> None:
@@ -140,7 +140,7 @@ class TestEmbeddingSimilarityScorer:
             lookup={"x": [1.0, 0.0], "y": [0.8, 0.6]},
         )
         result = scorer.score(_step({"text": "x"}), _step({"text": "y"}))
-        assert result.passed is True
+        assert result.status == "passed"
         assert abs(result.score - 0.8) < 1e-9
 
     def test_threshold_just_below_fails(self) -> None:
@@ -149,25 +149,25 @@ class TestEmbeddingSimilarityScorer:
             lookup={"x": [1.0, 0.0], "y": [0.8, 0.6]},
         )
         result = scorer.score(_step({"text": "x"}), _step({"text": "y"}))
-        assert result.passed is False
+        assert result.status == "failed"
 
     def test_missing_actual_field_fails_without_loading_model(self) -> None:
         scorer, fake = _scorer_with_model(lookup={})
         result = scorer.score(_step({}), _step({"text": "anything"}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert "missing from actual" in (result.reasoning or "")
         assert fake.encode_calls == []
 
     def test_missing_expected_field_fails(self) -> None:
         scorer, _ = _scorer_with_model(lookup={})
         result = scorer.score(_step({"text": "x"}), _step({}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert "missing from expected" in (result.reasoning or "")
 
     def test_non_string_field_fails(self) -> None:
         scorer, _ = _scorer_with_model(lookup={})
         result = scorer.score(_step({"text": 123}), _step({"text": "ok"}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert "not str" in (result.reasoning or "")
 
     def test_expected_required(self) -> None:

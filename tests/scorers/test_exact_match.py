@@ -30,7 +30,7 @@ class TestExactMatchScorer:
         actual = _step({"title": "Hello"})
         expected = _step({"title": "Hello"})
         result = ExactMatchScorer(fields=["title"]).score(actual, expected)
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.score == 1.0
         assert result.reasoning is None
         assert result.metadata["matched_fields"] == ["title"]
@@ -41,14 +41,14 @@ class TestExactMatchScorer:
         actual = _step({"title": "Hello", "summary": "World"})
         expected = _step({"title": "Hello", "summary": "World"})
         result = ExactMatchScorer(fields=["title", "summary"]).score(actual, expected)
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.score == 1.0
 
     def test_partial_match_fails_with_fractional_score(self) -> None:
         actual = _step({"title": "Hello", "summary": "Drift"})
         expected = _step({"title": "Hello", "summary": "World"})
         result = ExactMatchScorer(fields=["title", "summary"]).score(actual, expected)
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.5
         assert "mismatch" in (result.reasoning or "")
         assert result.metadata["matched_fields"] == ["title"]
@@ -62,14 +62,14 @@ class TestExactMatchScorer:
         actual = _step({"a": 1, "b": 2})
         expected = _step({"a": 99, "b": 99})
         result = ExactMatchScorer(fields=["a", "b"]).score(actual, expected)
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.0
 
     def test_missing_field_in_actual_counts_as_missing(self) -> None:
         actual = _step({"title": "Hello"})
         expected = _step({"title": "Hello", "summary": "World"})
         result = ExactMatchScorer(fields=["title", "summary"]).score(actual, expected)
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.5
         assert result.metadata["missing_fields"] == ["summary"]
 
@@ -77,7 +77,7 @@ class TestExactMatchScorer:
         actual = _step({"title": "Hello", "summary": "World"})
         expected = _step({"title": "Hello"})
         result = ExactMatchScorer(fields=["title", "summary"]).score(actual, expected)
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.metadata["missing_fields"] == ["summary"]
 
     def test_deep_equality_on_nested_dicts_passes(self) -> None:
@@ -85,14 +85,14 @@ class TestExactMatchScorer:
         actual = _step(nested)
         expected = _step({"data": {"nested": {"deep": [1, 2, {"k": "v"}]}}})
         result = ExactMatchScorer(fields=["data"]).score(actual, expected)
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.score == 1.0
 
     def test_deep_inequality_on_nested_dicts_fails(self) -> None:
         actual = _step({"data": {"nested": [1, 2, 3]}})
         expected = _step({"data": {"nested": [1, 2, 4]}})
         result = ExactMatchScorer(fields=["data"]).score(actual, expected)
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.0
 
     def test_expected_required(self) -> None:

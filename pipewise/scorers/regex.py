@@ -7,6 +7,7 @@ without per-call recompile cost.
 """
 
 import re
+from collections.abc import Sequence
 from typing import Literal
 
 from pipewise.core.schema import StepExecution
@@ -25,6 +26,7 @@ class RegexScorer:
         *,
         match_mode: MatchMode = "search",
         name: str | None = None,
+        applies_to_step_ids: Sequence[str] | None = None,
     ) -> None:
         if not field:
             raise ValueError("RegexScorer requires a non-empty field name")
@@ -32,6 +34,9 @@ class RegexScorer:
         self.pattern: re.Pattern[str] = re.compile(pattern) if isinstance(pattern, str) else pattern
         self.match_mode: MatchMode = match_mode
         self.name: str = name or f"regex[{field}]"
+        self.applies_to_step_ids: Sequence[str] | None = (
+            tuple(applies_to_step_ids) if applies_to_step_ids is not None else None
+        )
 
     def score(
         self,
@@ -40,8 +45,8 @@ class RegexScorer:
     ) -> ScoreResult:
         if self.field not in actual.outputs:
             return ScoreResult(
+                status="failed",
                 score=0.0,
-                passed=False,
                 reasoning=f"field '{self.field}' missing from outputs",
                 metadata={"pattern": self.pattern.pattern, "mode": self.match_mode},
             )
@@ -49,8 +54,8 @@ class RegexScorer:
         value = actual.outputs[self.field]
         if not isinstance(value, str):
             return ScoreResult(
+                status="failed",
                 score=0.0,
-                passed=False,
                 reasoning=(
                     f"field '{self.field}' is {type(value).__name__}, not str — "
                     "regex requires a string value"
@@ -63,8 +68,8 @@ class RegexScorer:
         passed = result is not None
 
         return ScoreResult(
+            status="passed" if passed else "failed",
             score=1.0 if passed else 0.0,
-            passed=passed,
             reasoning=(
                 None
                 if passed

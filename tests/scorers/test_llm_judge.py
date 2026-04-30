@@ -165,7 +165,7 @@ class TestSingleJudge:
             verdicts=[_JudgeVerdict(score=0.9, passed=True, reasoning="Looks good.")]
         )
         result = scorer.score(_step({"text": "Hello"}))
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.score == 0.9
         assert result.reasoning == "Looks good."
         assert result.metadata["consensus_n"] == 1
@@ -177,7 +177,7 @@ class TestSingleJudge:
             verdicts=[_JudgeVerdict(score=0.2, passed=False, reasoning="Output is wrong.")]
         )
         result = scorer.score(_step({"text": "..."}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.score == 0.2
         assert result.metadata["passed_count"] == 0
 
@@ -283,7 +283,7 @@ class TestConsensus:
             ],
         )
         result = scorer.score(_step({"text": "x"}))
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.metadata["passed_count"] == 3
         assert result.metadata["majority_threshold"] == 2
         assert len(fake.messages.parse_calls) == 3
@@ -300,7 +300,7 @@ class TestConsensus:
             ],
         )
         result = scorer.score(_step({"text": "x"}))
-        assert result.passed is True
+        assert result.status == "passed"
         assert result.metadata["passed_count"] == 2
 
     def test_one_of_three_fails(self) -> None:
@@ -313,7 +313,7 @@ class TestConsensus:
             ],
         )
         result = scorer.score(_step({"text": "x"}))
-        assert result.passed is False
+        assert result.status == "failed"
         assert result.metadata["passed_count"] == 1
 
     def test_reasoning_concatenates_all_judges(self) -> None:
@@ -345,7 +345,7 @@ class TestConsensus:
         result = scorer.score(_step({"text": "x"}))
         assert result.metadata["majority_threshold"] == 3
         assert result.metadata["passed_count"] == 3
-        assert result.passed is True
+        assert result.status == "passed"
 
     def test_individual_verdicts_in_metadata(self) -> None:
         scorer, _ = _scorer_with_fake(
@@ -528,7 +528,7 @@ def test_real_anthropic_api() -> None:
         inputs={"url": "https://example.com"},
     )
     result_good = scorer.score(good_step)
-    assert result_good.passed is True
+    assert result_good.status == "passed"
     assert result_good.score >= 0.5
     assert result_good.reasoning is not None and len(result_good.reasoning) > 0
     assert scorer.cumulative_cost_usd > 0
@@ -539,5 +539,5 @@ def test_real_anthropic_api() -> None:
         inputs={"url": "https://example.com"},
     )
     result_bad = scorer.score(bad_step)
-    assert result_bad.passed is False
+    assert result_bad.status == "failed"
     assert result_bad.score < 0.5

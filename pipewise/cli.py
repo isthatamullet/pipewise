@@ -205,11 +205,16 @@ def eval_cmd(
     total = report.total_score_count()
     passing = report.passing_score_count()
     failing = report.failing_score_count()
+    skipped = report.skipped_score_count()
     typer.echo(
         f"Evaluated {len(report.runs)} run(s) with "
         f"{len(step_scorers)} step scorer(s) + {len(run_scorers)} run scorer(s)."
     )
-    typer.echo(f"Scores: {passing}/{total} passing ({failing} failing).")
+    summary = f"Scores: {passing}/{total} passing ({failing} failing"
+    if skipped > 0:
+        summary += f", {skipped} skipped"
+    summary += ")."
+    typer.echo(summary)
 
     # Failure-clustering hint: if multiple failures share the same
     # (step_id, scorer_name), surface the largest cluster so adopters
@@ -247,7 +252,7 @@ def _top_failure_cluster(report: EvalReport) -> dict[str, Any] | None:
     clusters: dict[tuple[str | None, str], dict[str, Any]] = {}
     for run in report.runs:
         for entry in run.step_scores:
-            if entry.result.passed:
+            if entry.result.status != "failed":
                 continue
             key: tuple[str | None, str] = (entry.step_id, entry.scorer_name)
             if key not in clusters:
@@ -259,7 +264,7 @@ def _top_failure_cluster(report: EvalReport) -> dict[str, Any] | None:
                 }
             clusters[key]["count"] += 1
         for run_entry in run.run_scores:
-            if run_entry.result.passed:
+            if run_entry.result.status != "failed":
                 continue
             key = (None, run_entry.scorer_name)
             if key not in clusters:

@@ -193,16 +193,18 @@ def test_default_scorers_drive_run_eval_end_to_end() -> None:
         assert len(run_result.step_scores) == 8
         assert len(run_result.run_scores) == 2
 
-    # The adapter populates `_company` on every step (including skipped ones)
-    # so the company-propagated check passes uniformly on healthy runs.
+    # Step scorer fires on every step that ran. Skipped steps (status="skipped")
+    # are auto-skipped by the runner — the step scorer emits status="skipped"
+    # for those without invoking the scorer. Healthy runs produce no "failed"
+    # step results.
     # Budget scorers run with `on_missing="skip"` because Claude Code doesn't
-    # expose per-call usage in v1 — those pass too.
+    # expose per-call usage in v1 — those emit status="skipped" too.
     for run_result in report.runs:
-        assert all(r.result.passed for r in run_result.step_scores), (
+        assert all(r.result.status != "failed" for r in run_result.step_scores), (
             "company-propagated step check failed unexpectedly"
         )
-        assert all(r.result.passed for r in run_result.run_scores), (
-            "budget run-scorer failed unexpectedly"
+        assert all(r.result.status == "skipped" for r in run_result.run_scores), (
+            "budget run-scorers should be skipped (Claude Code adapter has no usage data)"
         )
 
 

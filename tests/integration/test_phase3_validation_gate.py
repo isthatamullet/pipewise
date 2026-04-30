@@ -149,14 +149,14 @@ def test_eval_writes_real_evalreport_against_factspark_data(tmp_path: Path) -> N
     # 1-6; step 7 (Gemini verifier) has a different schema and does not
     # carry that field. So the regex passes on 6 steps and fails on 1.
     for run_result in report.runs:
-        step_passes = sum(1 for e in run_result.step_scores if e.result.passed)
-        step_fails = sum(1 for e in run_result.step_scores if not e.result.passed)
+        step_passes = sum(1 for e in run_result.step_scores if e.result.status == "passed")
+        step_fails = sum(1 for e in run_result.step_scores if e.result.status != "passed")
         assert step_passes == 6, (
             "regex should pass on steps 1-6 (which propagate full_article_content)"
         )
         assert step_fails == 1, "regex should fail on step 7 (different schema)"
-        # Both run scorers skip and pass.
-        assert all(e.result.passed for e in run_result.run_scores)
+        # Both budget scorers use on_missing="skip" → emit "skipped" (no signal).
+        assert all(e.result.status == "skipped" for e in run_result.run_scores)
 
 
 def test_inspect_displays_a_real_factspark_run_cleanly(tmp_path: Path) -> None:
