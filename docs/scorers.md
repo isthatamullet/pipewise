@@ -183,6 +183,55 @@ uv run python examples/demo_phase2_scorers.py
 
 ---
 
+## Configuring scorers via TOML
+
+`pipewise eval --scorers <path.toml>` overrides the adapter's `default_scorers()` with a TOML-defined scorer set. Use this when the canonical scorer set differs by environment — e.g., a tighter `LatencyBudgetScorer` budget on CI than on local dev, or opting into `LlmJudgeScorer` only on the baseline workflow where reproducibility matters and the API cost is acceptable.
+
+The file format is a `[scorers.<name>]` table per scorer. The section key becomes the scorer's `name`; `class` is a dotted import path; all other keys are forwarded as constructor kwargs:
+
+```toml
+[scorers.has-status]
+class = "pipewise.scorers.regex.RegexScorer"
+field = "status"
+pattern = "^ok$"
+
+[scorers.cost-cap]
+class = "pipewise.scorers.budget.CostBudgetScorer"
+budget_usd = 0.10
+on_missing = "skip"
+
+[scorers.latency-cap]
+class = "pipewise.scorers.budget.LatencyBudgetScorer"
+budget_ms = 10000
+on_missing = "skip"
+```
+
+Save as `scorers.toml` and invoke:
+
+```bash
+pipewise eval --adapter your_pipeline_pipewise.adapter \
+              --dataset path/to/dataset.jsonl \
+              --scorers scorers.toml
+```
+
+Expected output for a 3-run dataset where every step has `status: "ok"`:
+
+```
+Evaluated 3 run(s) with 1 step scorer(s) + 2 run scorer(s).
+Scores: 15/15 passing (0 failing).
+Report: pipewise/reports/<timestamp>_dataset/report.json
+```
+
+A few rules worth knowing:
+
+- **Step vs. run classification is automatic.** Pipewise inspects each scorer's `score(actual=...)` annotation: `StepExecution` → step scorer, `PipelineRun` → run scorer. Custom scorers that don't have resolvable type hints fall back to Protocol-isinstance fits.
+- **Missing-class errors surface at config-load time, not eval time.** A typo in `class = "..."` produces a `ScorerConfigError` *before* the eval starts, so failed runs are never partially scored.
+- **Constructor kwargs are forwarded as-is.** If a scorer's `__init__` signature changes, your TOML breaks at load time with a clear `TypeError`-shaped message — no silent ignore.
+- **`name` is auto-supplied from the section key.** You can override with an explicit `name = "..."` line if you want a different display name than the TOML key.
+- **TOML inline tables work** for nested config (e.g., `JsonSchemaScorer`'s `schema = { type = "object", ... }`).
+
+---
+
 ## Writing your own scorer
 
 A scorer is any class with a `name` attribute and a `score()` method matching the protocol shape. The simplest possible step scorer:
@@ -203,3 +252,66 @@ class IsNonEmptyScorer:
 ```
 
 Pipewise's runner accepts any object satisfying the protocol — built-in or yours — without further registration.
+
+---
+
+## Comparing two reports with `pipewise diff`
+
+`pipewise eval` writes a timestamped `EvalReport` per run; `pipewise diff` compares two of them and surfaces what changed. Same code path the GitHub Action uses internally — the standalone CLI is for local "did my change improve scores or regress?" checks before pushing.
+
+```bash
+pipewise diff path/to/baseline/report.json path/to/current/report.json
+```
+
+The diff categorizes every `(run_id, step_id, scorer_name)` triple into one of: regression (was passing, now failing), improvement (was failing, now passing), score delta (pass status unchanged but score moved), or absent-in-one (scorer added/removed across reports). The text output groups them with counts:
+
+```
+Newly failing (regressions) (3):
+  run_001 / latency-cap  score 1.000 → 0.000  passed True → False
+  run_002 / latency-cap  score 1.000 → 0.000  passed True → False
+  run_003 / latency-cap  score 1.000 → 0.000  passed True → False
+
+Summary: 3 regressed, 0 improved, 0 score deltas
+```
+
+When nothing changed across the two reports:
+
+```
+Summary: 0 regressed, 0 improved, 0 score deltas
+```
+
+**Exit codes** make `pipewise diff` usable as a CI gate even outside the GitHub Action:
+
+- `0` — no regressions (improvements and score-deltas don't affect exit status)
+- `1` — at least one regression
+- `2` — usage error (file not found, malformed JSON, etc.)
+
+**JSON format** is available via `--format json` for tooling that wants the structured `ReportDiff` shape:
+
+```bash
+pipewise diff --format json baseline/report.json current/report.json
+```
+
+```json
+{
+  "runs_a_only": [],
+  "runs_b_only": [],
+  "regressions": [
+    {
+      "run_id": "run_001",
+      "step_id": null,
+      "scorer_name": "latency-cap",
+      "score_a": 1.0,
+      "score_b": 0.0,
+      "passed_a": true,
+      "passed_b": false
+    }
+  ],
+  "improvements": [],
+  "score_deltas": [],
+  "absent_in_a": [],
+  "absent_in_b": []
+}
+```
+
+For the automated PR-comment form of the same diff (sticky comment with verdict line + roll-up table), see [`docs/ci-integration.md`](ci-integration.md) — the `pipewise-eval` GitHub Action wraps `compute_diff()` and renders the result as Markdown.
