@@ -98,7 +98,7 @@ for fx in [
     {"run_id": "run_002", "topic": "earnings-report"},
     {"run_id": "run_003", "topic": "product-launch"},
 ]:
-    (runs_dir / f"{fx['run_id']}.json").write_text(json.dumps(fx))
+    (runs_dir / f"{fx['run_id']}.json").write_text(json.dumps(fx), encoding="utf-8")
 
 # Call adapter.load_run on each raw file, write JSONL — one PipelineRun per line.
 with Path("dataset.jsonl").open("w", encoding="utf-8") as out:
