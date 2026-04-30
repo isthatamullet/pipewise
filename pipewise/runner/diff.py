@@ -97,15 +97,24 @@ class ReportDiff(BaseModel):
         return bool(self.regressions)
 
     def has_strict_regressions(self) -> bool:
-        """True iff there are regressions OR any `passed → skipped` transition.
+        """True iff there are regressions OR any scope-narrowing transition
+        that hides a previously-passing scorer.
 
-        Used by `pipewise diff --strict` to refuse intentional scope narrowing
-        as a CI-passing change. `failed → skipped` is still allowed because
-        the scorer wasn't passing before either.
+        Two scope-narrowing paths are caught:
+        - `passed → skipped` (entry in `newly_skipped`) — scorer was scoped
+          out via `applies_to_step_ids` or the step itself was skipped
+        - `passed → absent` (entry in `absent_in_b`) — scorer was removed
+          entirely from B's report (e.g., dropped from `default_scorers()`)
+
+        Used by `pipewise diff --strict` to refuse intentional coverage loss
+        as a CI-passing change. `failed → skipped` and `failed → absent` are
+        still allowed because the scorer wasn't passing before either.
         """
         if self.regressions:
             return True
-        return any(e.status_a == "passed" for e in self.newly_skipped)
+        if any(e.status_a == "passed" for e in self.newly_skipped):
+            return True
+        return any(e.status_a == "passed" for e in self.absent_in_b)
 
     def total_changes(self) -> int:
         return (

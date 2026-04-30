@@ -373,3 +373,33 @@ class TestDiffCommand:
 
         result = runner.invoke(app, ["diff", "--strict", str(a_path), str(b_path)])
         assert result.exit_code == 0
+
+    def test_strict_flag_catches_passed_scorer_removed_entirely(self, tmp_path: Path) -> None:
+        # `passed → absent_in_b` — scorer removed from default_scorers()
+        # entirely, dropping coverage silently. --strict refuses this just
+        # like it refuses passed → skipped via applies_to_step_ids.
+        a = _report(
+            runs=[
+                _run(
+                    run_scores=[
+                        RunScoreEntry(scorer_name="kept", result=_result(1.0, True)),
+                        RunScoreEntry(scorer_name="dropped", result=_result(1.0, True)),
+                    ]
+                )
+            ]
+        )
+        b = _report(
+            runs=[_run(run_scores=[RunScoreEntry(scorer_name="kept", result=_result(1.0, True))])]
+        )
+        a_path = tmp_path / "a.json"
+        b_path = tmp_path / "b.json"
+        self._write(a_path, a)
+        self._write(b_path, b)
+
+        # Default: not a regression — scorer removal is fine without --strict.
+        default_result = runner.invoke(app, ["diff", str(a_path), str(b_path)])
+        assert default_result.exit_code == 0
+
+        # --strict: removing a passing scorer drops silent coverage. Trip CI.
+        strict_result = runner.invoke(app, ["diff", "--strict", str(a_path), str(b_path)])
+        assert strict_result.exit_code == 1
