@@ -20,7 +20,7 @@ cd pipewise
 uv sync
 ```
 
-A pipewise eval needs three things: a **dataset** of `PipelineRun`s (JSONL), an **adapter** module that knows how to load runs for your pipeline, and a **scorer config** (TOML) — or your adapter's defaults. Sketch:
+A pipewise eval needs three things: a **dataset** of serialized `PipelineRun`s (JSONL — one per line, built upstream of pipewise by your own pipeline runner), an **adapter** module exposing `default_scorers()`, and a **scorer config** (TOML) — or your adapter's defaults. Sketch:
 
 ```bash
 # 1. Run scorers across a dataset and write a timestamped report.

@@ -6,6 +6,8 @@ This guide walks through building a pipewise adapter using the two reference int
 
 An adapter is a small Python package that lives **inside the pipeline you want to evaluate** and converts that pipeline's outputs into a `pipewise.PipelineRun`. Pipewise core never imports your pipeline — your adapter imports pipewise.
 
+In one sentence: **your pipeline produces raw outputs, your adapter translates those into canonical `PipelineRun`s, pipewise scores them.** Translation happens in your code, before pipewise ever sees the data.
+
 ```
 your-pipeline-repo/
 └── integrations/
@@ -30,19 +32,60 @@ It also keeps the dependency graph clean: pipewise stays small (no optional pipe
 An adapter package exposes two functions at module level:
 
 ```python
-from pipewise import PipelineRun, RunScorer, StepScorer
+from pathlib import Path
+from pipewise import PipelineRun, StepExecution, RunScorer, StepScorer
 
 def load_run(path: Path) -> PipelineRun:
-    """Read a single completed pipeline run from disk and translate it
-    into a PipelineRun. Pipewise's runner calls this once per row in the
-    eval dataset."""
+    """Translate one completed pipeline run on disk into a canonical PipelineRun.
+
+    Called by *your* pipeline runner (or a small materialization script you
+    write) — not by pipewise. The output of this function gets serialized
+    to one row of a JSONL dataset that `pipewise eval` later consumes.
+    See "Where PipelineRun JSONL files come from" below."""
 
 def default_scorers() -> tuple[list[StepScorer], list[RunScorer]]:
-    """Return the canonical scorer set for this pipeline. Used when
-    `pipewise eval` is invoked without `--scorers <toml>`."""
+    """Return the canonical scorer set for this pipeline. Used by
+    `pipewise eval --adapter <module>` when no `--scorers <toml>` is
+    supplied. Optional — if your adapter omits `default_scorers`, every
+    `pipewise eval` invocation must pass `--scorers <toml>` explicitly."""
 ```
 
-Both are required. Pipewise's `--adapter` flag accepts a dotted module path (e.g., `--adapter factspark_pipewise.adapter`) and resolves these names at module level via `importlib.import_module`.
+`load_run` is required; `default_scorers` is optional. Pipewise's `--adapter` flag accepts a dotted module path (e.g., `--adapter factspark_pipewise.adapter`) and resolves `default_scorers` via `importlib.import_module` at eval time. **Pipewise never calls `load_run` itself** — `load_run` is a helper your own code uses to build the JSONL dataset that pipewise consumes.
+
+## Where PipelineRun JSONL files come from
+
+`pipewise eval --dataset <path.jsonl>` consumes a JSONL file where **each line is a complete serialized `PipelineRun`** (not a path or pointer). That JSONL is built upstream of pipewise, by your own code, in four steps:
+
+1. **Your pipeline runs** against your dataset of *inputs* and produces raw outputs (e.g., `articles/<id>_step{N}.json` files for FactSpark, or whatever shape your pipeline emits).
+2. **Your runner code calls `adapter.load_run(raw_path)`** for each completed run, getting back a `PipelineRun` object.
+3. **Your runner serializes each `PipelineRun` to one line of JSONL** via `run.model_dump_json()` and writes the lines to your golden dataset file.
+4. **`pipewise eval --dataset golden.jsonl --adapter <module>`** reads the JSONL, validates each row as a `PipelineRun`, and runs your default scorers (or the ones in `--scorers <toml>` if supplied).
+
+A minimal materialization script — call it `build_dataset.py` and check it into your pipeline repo:
+
+```python
+# build_dataset.py — runs once after your pipeline finishes, before pipewise eval
+from pathlib import Path
+from your_pipeline_pipewise.adapter import load_run
+
+raw_run_paths = sorted(Path("path/to/outputs/").glob("*.json"))  # Adjust to your pipeline's output shape
+with Path("golden.jsonl").open("w", encoding="utf-8") as out:
+    for path in raw_run_paths:
+        run = load_run(path)
+        out.write(run.model_dump_json() + "\n")
+```
+
+Then:
+
+```bash
+pipewise eval --dataset golden.jsonl --adapter your_pipeline_pipewise.adapter
+```
+
+This separation has three useful properties:
+
+- **Pipewise never imports or executes your pipeline code at eval time.** It only imports your adapter module to look up `default_scorers`. CI environments running `pipewise eval` don't need your pipeline's runtime dependencies.
+- **`golden.jsonl` is a stable, self-contained artifact.** You can commit it to git, hand it to another tool, or eval it with a future version of pipewise without re-running your pipeline.
+- **`load_run` failures are debuggable in your own code, not buried in pipewise output.** If your adapter raises, it raises in your runner script, with your stack trace — not inside `pipewise eval`.
 
 ## Worked example 1 — FactSpark (linear pipeline)
 
