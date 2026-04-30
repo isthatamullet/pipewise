@@ -76,40 +76,75 @@ def render_pr_comment(
 
 
 def _render_verdict_line(report: EvalReport, diff: ReportDiff | None) -> str:
+    # Single-pass tally — cheaper than four separate calls to
+    # passing_score_count / failing_score_count / skipped_score_count /
+    # total_score_count, each of which materializes `all_results()` again.
+    results = report.all_results()
+    total = len(results)
+    passing = failing = skipped = 0
+    for r in results:
+        if r.status == "passed":
+            passing += 1
+        elif r.status == "failed":
+            failing += 1
+        else:  # skipped
+            skipped += 1
+
+    # All-skipped on PR side: no signal regardless of baseline. The eval ran
+    # but every scorer short-circuited (e.g., applies_to_step_ids excluded
+    # all steps, or every step had `status="skipped"`).
+    if total > 0 and passing == 0 and failing == 0 and skipped > 0:
+        return "⏭ All scorers skipped · no signal"
+
     if diff is None:
-        passing = report.passing_score_count()
-        total = report.total_score_count()
         run_word = "run" if len(report.runs) == 1 else "runs"
-        return f"🆕 {len(report.runs)} {run_word} · {passing}/{total} scorers passing · no baseline"
+        suffix = f" ({skipped} skipped)" if skipped > 0 else ""
+        return (
+            f"🆕 {len(report.runs)} {run_word} · "
+            f"{passing}/{total} scorers passing{suffix} · no baseline"
+        )
 
     if diff.regressions:
         n = len(diff.regressions)
         plural = "" if n == 1 else "s"
         return f"❌ {n} regression{plural} · was passing on main, failing here"
 
-    failing = report.failing_score_count()
     if failing > 0:
         plural = "" if failing == 1 else "s"
         return f"⚠️ {failing} failing scorer{plural} · no regressions vs main"
 
+    # Scope narrowed without regressions or active failures: surface that
+    # something stopped running so adopters can verify the narrowing was
+    # intentional. Doesn't trip CI red unless `pipewise diff --strict`.
+    if diff.newly_skipped:
+        n = len(diff.newly_skipped)
+        plural = "" if n == 1 else "s"
+        return f"⏭ {n} newly-skipped scorer{plural} · no regressions vs main"
+
+    # Once skipped scorers exist, "all scorers passing" is misleading —
+    # some scorers didn't run at all. Adjust copy.
+    all_passing_copy = "All non-skipped scorers passing" if skipped > 0 else "All scorers passing"
+
     improvements = len(diff.improvements)
     if improvements > 0:
         plural = "" if improvements == 1 else "s"
-        return f"✅ All scorers passing · {improvements} improvement{plural} 🟢"
+        return f"✅ {all_passing_copy} · {improvements} improvement{plural} 🟢"
 
-    # At this point: no regressions, no failing, no improvements. But scores
-    # may have moved (`score_deltas`), or scorers/runs may have been added or
-    # removed. Any of those means "no regressions" is honest; "no change" is
-    # a lie. Reserve "no change vs main" for the truly identical case.
+    # At this point: no regressions, no failing, no improvements, no
+    # newly-skipped. But scores may have moved (`score_deltas`), scorers/runs
+    # may have been added/removed, or scorers may have started running again
+    # (`newly_running`). Any of those means "no regressions" is honest; "no
+    # change" is a lie. Reserve "no change vs main" for the truly identical case.
     if (
         diff.score_deltas
+        or diff.newly_running
         or diff.absent_in_a
         or diff.absent_in_b
         or diff.runs_a_only
         or diff.runs_b_only
     ):
-        return "✅ All scorers passing · no regressions vs main"
-    return "✅ All scorers passing · no change vs main"
+        return f"✅ {all_passing_copy} · no regressions vs main"
+    return f"✅ {all_passing_copy} · no change vs main"
 
 
 # ─── Roll-up table ───────────────────────────────────────────────────────────
@@ -146,9 +181,8 @@ def _format_score(score: float | None) -> str:
 
 
 def _status_icon(status: str) -> str:
-    """Render a `ScoreResult.status` as a markdown icon. PR #3 will replace
-    this with verdict-line-aware rendering; for now the rollup table just
-    needs three states."""
+    """Render a `ScoreResult.status` as a markdown icon for the per-row
+    rollup table: passed → ✅, failed → ❌, skipped → ⏭."""
     if status == "passed":
         return "✅"
     if status == "failed":
@@ -214,9 +248,23 @@ def _render_rollup_table(report: EvalReport, baseline: EvalReport | None) -> str
 
 
 def _count_unchanged(report: EvalReport, baseline: EvalReport, diff: ReportDiff) -> int:
-    """Entries present in both reports with same pass status AND same score."""
-    matched_in_report = report.total_score_count() - len(diff.absent_in_a)
-    changed = len(diff.regressions) + len(diff.improvements) + len(diff.score_deltas)
+    """Entries present in both reports with same status AND same score.
+
+    Skipped-state transitions count as changes — they're entries in
+    `newly_skipped` or `newly_running`, not "unchanged." Entries from
+    entirely new runs (in `diff.runs_b_only`) are also excluded — those
+    are added, not unchanged.
+    """
+    new_run_ids = set(diff.runs_b_only)
+    new_run_entries = sum(len(r.all_results()) for r in report.runs if r.run_id in new_run_ids)
+    matched_in_report = report.total_score_count() - len(diff.absent_in_a) - new_run_entries
+    changed = (
+        len(diff.regressions)
+        + len(diff.improvements)
+        + len(diff.score_deltas)
+        + len(diff.newly_skipped)
+        + len(diff.newly_running)
+    )
     return max(matched_in_report - changed, 0)
 
 
@@ -224,15 +272,22 @@ def _format_extras_line(diff: ReportDiff) -> str | None:
     """Footnote listing diff categories not surfaced in the main counts row.
 
     The main row tracks regressions / improvements / unchanged (strict pass-
-    fail framing). Score-only deltas, newly-added scorers, and removed
-    scorers are real changes too — without surfacing them, the displayed
-    counts won't sum to the number of rows in the rollup table when those
-    categories are non-empty. Returns `None` when nothing to report.
+    fail framing). Score-only deltas, skipped-state transitions, newly-added
+    scorers, and removed scorers are real changes too — without surfacing
+    them, the displayed counts won't sum to the number of rows in the rollup
+    table when those categories are non-empty. Returns `None` when nothing
+    to report.
     """
     extras: list[str] = []
     if diff.score_deltas:
         n = len(diff.score_deltas)
         extras.append(f"{n} score delta{'' if n == 1 else 's'}")
+    if diff.newly_skipped:
+        n = len(diff.newly_skipped)
+        extras.append(f"{n} newly skipped")
+    if diff.newly_running:
+        n = len(diff.newly_running)
+        extras.append(f"{n} newly running")
     if diff.absent_in_a:
         n = len(diff.absent_in_a)
         extras.append(f"{n} newly added")
