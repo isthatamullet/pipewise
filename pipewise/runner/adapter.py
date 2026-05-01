@@ -45,8 +45,8 @@ def resolve_adapter(name: str) -> AdapterCallable:
 
     Args:
         name: A dotted Python module path, e.g.
-            ``"factspark.integrations.pipewise.adapter"``. The module must
-            be importable from the current Python environment (installed
+            ``"news_analysis_pipewise.adapter"``. The module must be
+            importable from the current Python environment (installed
             package, in `PYTHONPATH`, etc.).
 
     Returns:
