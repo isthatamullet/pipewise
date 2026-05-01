@@ -1,0 +1,58 @@
+{
+  "run_id": "golden-002-skipped",
+  "pipeline_name": "anthropic-agent-react",
+  "pipeline_version": "0.1.0",
+  "started_at": "2026-05-01T11:56:33.608187Z",
+  "completed_at": "2026-05-01T11:56:35.159987Z",
+  "status": "completed",
+  "initial_input": {
+    "user_input": "Hello! What can you help with?"
+  },
+  "steps": [
+    {
+      "step_id": "agent__1",
+      "step_name": "Agent (iteration 1)",
+      "started_at": "2026-05-01T11:56:35.159871Z",
+      "completed_at": "2026-05-01T11:56:35.159871Z",
+      "status": "completed",
+      "error": null,
+      "executor": "agent",
+      "model": "claude-haiku-4-5-20251001",
+      "provider": "anthropic",
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Hello! What can you help with?"
+          }
+        ]
+      },
+      "outputs": {
+        "id": "msg_01WorWGLJrkCz8ZouXcqDEX4",
+        "model": "claude-haiku-4-5-20251001",
+        "stop_reason": "end_turn",
+        "content": [
+          {
+            "type": "text",
+            "text": "Hello! I'm here to help with a variety of tasks. Here's what I can do:\n\n1. **Calculate arithmetic expressions** - I can evaluate mathematical expressions involving addition, subtraction, multiplication, division, and parentheses. For example: \"What is 25 * 4 + 15?\"\n\n2. **Look up country information** - I can provide basic facts about countries, such as their capital cities and population. For example: \"What's the capital of France?\" or \"How many people live in Japan?\"\n\n3. **General assistance** - I can answer questions, provide information, have conversations, and help with a wide variety of topics that don't require special tools.\n\nFeel free to ask me anything! Whether you need a quick calculation, information about a country, or help with something else entirely, just let me know. 😊"
+          }
+        ]
+      },
+      "input_tokens": 716,
+      "output_tokens": 184,
+      "cost_usd": 0.0016359999999999999,
+      "latency_ms": null,
+      "metadata": {}
+    }
+  ],
+  "final_output": {
+    "text": "Hello! I'm here to help with a variety of tasks. Here's what I can do:\n\n1. **Calculate arithmetic expressions** - I can evaluate mathematical expressions involving addition, subtraction, multiplication, division, and parentheses. For example: \"What is 25 * 4 + 15?\"\n\n2. **Look up country information** - I can provide basic facts about countries, such as their capital cities and population. For example: \"What's the capital of France?\" or \"How many people live in Japan?\"\n\n3. **General assistance** - I can answer questions, provide information, have conversations, and help with a wide variety of topics that don't require special tools.\n\nFeel free to ask me anything! Whether you need a quick calculation, information about a country, or help with something else entirely, just let me know. 😊"
+  },
+  "total_cost_usd": 0.0016359999999999999,
+  "total_input_tokens": 716,
+  "total_output_tokens": 184,
+  "total_latency_ms": 1551,
+  "adapter_name": "pipewise-anthropic-quickstarts",
+  "adapter_version": "0.1.0",
+  "metadata": {}
+}
