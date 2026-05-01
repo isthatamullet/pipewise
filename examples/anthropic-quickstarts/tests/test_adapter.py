@@ -77,6 +77,15 @@ class TestEndToEndEval:
                 f"run scorer {run_score.scorer_name} did not pass: {run_score.result.reasoning}"
             )
 
+    def test_step_scorer_covers_full_default_iteration_range(self):
+        # Regression: scorer scope must cover the agent's DEFAULT_MAX_ITERATIONS
+        # (8). Pre-Gemini-fix the scope was agent__1..4 — agent steps 5-8 in
+        # longer runs would silently skip validation.
+        step_scorers, _ = default_scorers()
+        agent_shape = next(s for s in step_scorers if s.name == "anthropic_agent_response_shape")
+        scope = set(agent_shape.applies_to_step_ids or ())
+        assert {"agent__1", "agent__4", "agent__8"}.issubset(scope)
+
     def test_skipped_run_passes_all_scopes(self):
         run = load_run(RUNS_DIR / "golden-002-skipped.json")
         step_scorers, run_scorers = default_scorers()

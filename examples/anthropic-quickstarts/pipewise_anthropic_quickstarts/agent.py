@@ -85,7 +85,10 @@ class MinimalAgent:
                 if executor is None:
                     output: Any = {"error": f"unknown tool {name!r}"}
                 else:
-                    output = executor(**tool_input) if isinstance(tool_input, dict) else {}
+                    try:
+                        output = executor(**tool_input) if isinstance(tool_input, dict) else {}
+                    except TypeError as exc:
+                        output = {"error": f"invalid arguments for tool {name!r}: {exc}"}
                 if sink is not None:
                     sink(
                         "tool_call",

@@ -90,6 +90,29 @@ class TestMinimalAgentLoop:
         assert tool_event["name"] == "calculator"
         assert tool_event["output"] == "2"
 
+    def test_invalid_tool_args_returns_error_payload(self):
+        # LLM passes args that don't match the executor's signature → TypeError
+        # should be caught and surfaced as an error payload, not crash the loop.
+        client = _client_returning(
+            _response(
+                [_tool_use_block("calculator", {"wrong_param": "1+1"}, "tu_y")],
+                "tool_use",
+            ),
+            _response([_text_block("recovered")], "end_turn"),
+        )
+        agent = MinimalAgent(
+            client=client,
+            system="sys",
+            tool_schemas=TOOL_SCHEMAS,
+            tool_executors=TOOL_EXECUTORS,
+        )
+        events: list[tuple[str, dict[str, Any]]] = []
+        result = agent.run("test", sink=lambda k, d: events.append((k, d)))
+        assert result == "recovered"
+        tool_event = next(d for k, d in events if k == "tool_call")
+        assert "error" in tool_event["output"]
+        assert "invalid arguments" in tool_event["output"]["error"]
+
     def test_unknown_tool_returns_error_payload(self):
         client = _client_returning(
             _response(

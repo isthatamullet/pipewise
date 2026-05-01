@@ -62,7 +62,7 @@ def default_scorers() -> tuple[list[StepScorer], list[RunScorer]]:
         JsonSchemaScorer(
             schema=_AGENT_OUTPUT_SCHEMA,
             name="anthropic_agent_response_shape",
-            applies_to_step_ids=["agent__1", "agent__2", "agent__3", "agent__4"],
+            applies_to_step_ids=[f"agent__{i}" for i in range(1, 9)],
         ),
     ]
     run_scorers: list[RunScorer] = [
