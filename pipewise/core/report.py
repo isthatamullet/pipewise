@@ -98,8 +98,8 @@ class EvalReport(BaseModel):
 
     dataset_name: str | None = None
     """Human-readable name of the dataset that was evaluated, if any
-    (e.g., `"factspark-golden-v1"`). Optional — ad-hoc evals may not have
-    a named dataset."""
+    (e.g., `"news-analysis-golden-v1"`). Optional — ad-hoc evals may not
+    have a named dataset."""
 
     scorer_names: list[str] = Field(default_factory=list)
     """All scorer names that were invoked across this eval. Snapshotted
