@@ -126,9 +126,9 @@ Either path uses the same schema and the same scorer suite; only the data source
    ┌─────────┴──────────────────┐
    │                            │
 ┌──▼─────────────────────┐  ┌───▼────────────────────┐
-│  pipewise_langgraph    │  │ pipewise_anthropic_    │
+│  pipewise_langgraph    │  │  pipewise_anthropic_   │
 │  (examples/langgraph/) │  │  quickstarts           │
-│  ────────────────────  │  │ (examples/anthropic-   │
+│  ────────────────────  │  │  (examples/anthropic-  │
 │  Captures              │  │  quickstarts/)         │
 │  create_react_agent    │  │  ─────────────────     │
 │  graph runs            │  │  Captures imperative-  │
