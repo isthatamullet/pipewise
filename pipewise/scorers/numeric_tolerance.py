@@ -1,8 +1,8 @@
 """NumericToleranceScorer — pass when |actual - expected| ≤ tolerance.
 
-Direct example: a `confidence_score` field that drifts by ~15 points after
-upstream prompt changes; `NumericToleranceScorer(field=..., tolerance=10)`
-catches the regression on the next CI run.
+Direct example: if a `confidence_score` field drifts by ~15 points after
+upstream prompt changes, `NumericToleranceScorer(field="confidence_score",
+tolerance=10)` catches the regression on the next CI run.
 
 Two modes:
 - absolute (default): pass iff `|actual - expected| <= tolerance`
