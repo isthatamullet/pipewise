@@ -299,7 +299,7 @@ class TestEvalReport:
 
     def test_round_trip_json(self) -> None:
         report = self._report(
-            dataset_name="factspark-golden-v1",
+            dataset_name="news-analysis-golden-v1",
             scorer_names=["exact_match", "cost_budget"],
             runs=[
                 self._run_result(

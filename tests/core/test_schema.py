@@ -2,9 +2,9 @@
 
 Validates the schema's contract — required fields, enum constraints, non-negative
 numeric constraints, datetime tz policy, extra-field policy, round-trip JSON +
-dict serialization, and expressiveness against the two reference pipeline shapes
-(FactSpark linear, resume-tailor branching) — without requiring access to either
-reference pipeline's actual data.
+dict serialization, and expressiveness against the two canonical pipeline shapes
+(linear and branching) — without requiring access to any reference pipeline's
+actual data.
 
 The "validates against real JSON" gates live in issues #6 and #7.
 """
@@ -55,7 +55,7 @@ class TestStepExecution:
             completed_at=NOW + timedelta(seconds=2),
             status="completed",
             error=None,
-            executor="analyze-article",
+            executor="analyze",
             model="claude-opus-4-7",
             provider="anthropic",
             inputs={"url": "https://example.com"},
@@ -66,7 +66,7 @@ class TestStepExecution:
             latency_ms=1500,
             metadata={"adapter_specific": "value"},
         )
-        assert step.executor == "analyze-article"
+        assert step.executor == "analyze"
         assert step.cost_usd == 0.01
         assert step.outputs["nested"]["deep"] == [1, 2, 3]
 
@@ -428,20 +428,20 @@ class TestPipelineRun:
         restored = PipelineRun.model_validate(as_dict)
         assert restored == run
 
-    def test_factspark_shape_round_trips(self) -> None:
-        """The schema can express FactSpark's actual run shape:
-        7 linear steps, all-Claude except step 7 (Gemini), JSON outputs.
+    def test_linear_pipeline_shape_round_trips(self) -> None:
+        """The schema can express a linear pipeline's run shape:
+        7 sequential steps, mixed providers (Anthropic + Google), JSON outputs.
 
-        Shape test only — programmatically constructed, not reading real
-        FactSpark JSON. The real-data gate lives in #6.
+        Shape test only — programmatically constructed. The real-data gate
+        lives in #6.
         """
         step_specs: list[tuple[str, str, str, str]] = [
-            ("analyze", "analyze-article", "claude-opus-4-7", "anthropic"),
-            ("enhance_entities", "enhance-entities-geographic", "claude-opus-4-7", "anthropic"),
-            ("enhance_content", "enhance-content-assessment", "claude-opus-4-7", "anthropic"),
-            ("enhance_source", "enhance-source-temporal", "claude-opus-4-7", "anthropic"),
-            ("stupid_meter", "stupid-meter", "claude-opus-4-7", "anthropic"),
-            ("enhance_analytics_ui", "enhance-analytics-ui", "claude-opus-4-7", "anthropic"),
+            ("analyze", "analyze", "claude-opus-4-7", "anthropic"),
+            ("enhance_entities", "enhance-entities", "claude-opus-4-7", "anthropic"),
+            ("enhance_content", "enhance-content", "claude-opus-4-7", "anthropic"),
+            ("enhance_source", "enhance-source", "claude-opus-4-7", "anthropic"),
+            ("quality_check", "quality-check", "claude-opus-4-7", "anthropic"),
+            ("enhance_analytics", "enhance-analytics", "claude-opus-4-7", "anthropic"),
             ("verify_claims", "verify-claims", "gemini-3.1-pro", "google"),
         ]
         steps = [
@@ -459,14 +459,14 @@ class TestPipelineRun:
             for i, (sid, executor, model, provider) in enumerate(step_specs)
         ]
         run = PipelineRun(
-            run_id="bbc_trump_tariffs_supreme_court_20260224",
-            pipeline_name="factspark",
+            run_id="news-sample-001-20260224",
+            pipeline_name="news-analysis",
             started_at=NOW,
             completed_at=NOW + timedelta(seconds=10),
             status="completed",
             initial_input={"url": "https://...", "title": "..."},
             steps=steps,
-            adapter_name="factspark-pipewise-adapter",
+            adapter_name="news-analysis-pipewise-adapter",
             adapter_version="0.1.0",
         )
         restored = PipelineRun.model_validate_json(run.model_dump_json())
@@ -474,45 +474,45 @@ class TestPipelineRun:
         assert restored.steps[-1].provider == "google"
         assert all(s.provider == "anthropic" for s in restored.steps[:-1])
 
-    def test_resume_branching_shape_round_trips(self) -> None:
-        """The schema can express the harder resume-tailor pipeline:
+    def test_branching_pipeline_shape_round_trips(self) -> None:
+        """The schema can express a branching pipeline:
         - Step 2 was skipped (status="skipped", no completed_at)
-        - Step 4b ran, not Step 4 (branch captured by step_id)
+        - Step 4 ran in its branch_b variant, not branch_a
         - Step 7 absent (gated off by step 5 status)
 
         Shape test only — real-data gate is #7.
         """
         steps = [
-            _step("analyze_posting"),
-            _step("discovery", status="skipped"),
-            _step("research_company"),
-            _step("write_resume_hybrid"),  # branch chosen, not "write_resume"
-            _step("critique"),
+            _step("step_1"),
+            _step("step_2", status="skipped"),
+            _step("step_3"),
+            _step("step_4_branch_b"),  # branch chosen, not "step_4_branch_a"
+            _step("step_5"),
             StepExecution(
-                step_id="format_export",
-                step_name="Format & Export",
+                step_id="step_6",
+                step_name="Step 6",
                 started_at=NOW,
                 completed_at=NOW + timedelta(seconds=1),
                 status="completed",
-                outputs={"format": "markdown", "ats_risk": "MODERATE"},
+                outputs={"format": "markdown", "quality": "MODERATE"},
             ),
-            # step "export_canva" deliberately absent — gated off by step 5
+            # step "step_7" deliberately absent — gated off by step 5
         ]
         run = PipelineRun(
-            run_id="deepintent_senior_program_manager",
-            pipeline_name="resume-tailor",
+            run_id="sample-branching-001",
+            pipeline_name="branching-pipeline",
             started_at=NOW,
             status="partial",  # gated step means run didn't finish cleanly
             steps=steps,
-            adapter_name="resume-tailor-pipewise-adapter",
+            adapter_name="branching-pipeline-pipewise-adapter",
             adapter_version="0.1.0",
         )
         restored = PipelineRun.model_validate_json(run.model_dump_json())
         assert restored == run
         assert any(s.status == "skipped" for s in restored.steps)
-        assert any(s.step_id == "write_resume_hybrid" for s in restored.steps)
-        assert not any(s.step_id == "write_resume" for s in restored.steps)
-        assert not any(s.step_id == "export_canva" for s in restored.steps)
+        assert any(s.step_id == "step_4_branch_b" for s in restored.steps)
+        assert not any(s.step_id == "step_4_branch_a" for s in restored.steps)
+        assert not any(s.step_id == "step_7" for s in restored.steps)
 
 
 class TestSchemaPolicies:

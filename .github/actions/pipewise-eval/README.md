@@ -24,7 +24,7 @@ The two-step pattern in your CI:
 |---|---|---|---|
 | `report-path` | yes | — | Path to the `EvalReport` JSON for this PR. |
 | `baseline-report-path` | no | `''` | Path to the baseline `EvalReport` JSON. If omitted or the file is missing, the comment shows absolute values with no Δ column. |
-| `adapter-name` | yes | — | Adapter package name (e.g. `factspark_pipewise`). Also the sticky-comment marker key — multi-adapter repos get one comment per adapter. |
+| `adapter-name` | yes | — | Adapter package name (e.g. `news_analysis_pipewise`). Also the sticky-comment marker key — multi-adapter repos get one comment per adapter. |
 | `github-token` | yes | — | Token with `pull-requests: write` permission. Default `GITHUB_TOKEN` is fine. |
 | `python-version` | no | `'3.11'` | Python version used to run the renderer. |
 
@@ -125,8 +125,8 @@ Each call manages its own sticky comment.
 See [`pipewise/ci/github_action.py`](../../../pipewise/ci/github_action.py) and the unit tests in [`tests/ci/test_github_action.py`](../../../tests/ci/test_github_action.py) for the full rendered shape. At a glance:
 
 ```markdown
-<!-- pipewise-eval-report:factspark_pipewise -->
-## Pipewise eval report — factspark_pipewise
+<!-- pipewise-eval-report:news_analysis_pipewise -->
+## Pipewise eval report — news_analysis_pipewise
 
 ✅ All scorers passing · 2 improvements 🟢
 

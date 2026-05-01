@@ -17,11 +17,11 @@ NOW = datetime(2026, 4, 27, 12, 0, 0, tzinfo=UTC)
 def _make_run(run_id: str = "run_1") -> dict[str, object]:
     return {
         "run_id": run_id,
-        "pipeline_name": "factspark",
+        "pipeline_name": "news-analysis",
         "started_at": NOW.isoformat(),
         "completed_at": NOW.isoformat(),
         "status": "completed",
-        "adapter_name": "factspark-adapter",
+        "adapter_name": "news-analysis-adapter",
         "adapter_version": "0.1.0",
         "steps": [],
     }

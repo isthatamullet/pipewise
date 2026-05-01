@@ -2,7 +2,7 @@
 
 Wires CLI → adapter resolver → dataset loader → scorer config / defaults →
 runner → storage. Each test uses a synthetic in-memory adapter module so we
-don't depend on the FactSpark or resume reference adapters being installed.
+don't depend on any specific reference adapter being installed.
 """
 
 from __future__ import annotations
@@ -457,7 +457,7 @@ class TestEvalCommand:
     def test_dataset_name_defaults_to_filename_stem(
         self, tmp_path: Path, adapter_with_defaults: str
     ) -> None:
-        dataset = tmp_path / "factspark-golden.jsonl"
+        dataset = tmp_path / "news-analysis-golden.jsonl"
         _write_dataset(dataset, [_make_run("run_1")])
         output_root = tmp_path / "reports"
 
@@ -476,4 +476,4 @@ class TestEvalCommand:
 
         assert result.exit_code == 0
         subdir = next(output_root.iterdir())
-        assert subdir.name.endswith("_factspark-golden")
+        assert subdir.name.endswith("_news-analysis-golden")

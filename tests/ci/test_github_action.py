@@ -51,8 +51,8 @@ def _run(
 ) -> RunEvalResult:
     return RunEvalResult(
         run_id=run_id,
-        pipeline_name="factspark",
-        adapter_name="factspark_pipewise",
+        pipeline_name="news-analysis",
+        adapter_name="news_analysis_pipewise",
         adapter_version="0.0.1",
         step_scores=step_scores or [],
         run_scores=run_scores or [],
@@ -91,14 +91,14 @@ class TestPassingNoChange:
     def test_verdict_says_no_change(self) -> None:
         baseline, report = self._identical_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc1234"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc1234"
         )
         assert "✅ All scorers passing · no change vs main" in out
 
     def test_delta_column_shows_dash_for_unchanged(self) -> None:
         baseline, report = self._identical_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc1234"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc1234"
         )
         # Three rollup rows; each Δ cell should be the em-dash placeholder.
         # Match `| — |` at line ends (the trailing pipe of the Δ column).
@@ -107,7 +107,7 @@ class TestPassingNoChange:
     def test_counts_show_zero_regressions_zero_improvements(self) -> None:
         baseline, report = self._identical_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc1234"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc1234"
         )
         assert "**Regressions:** 0 🔴" in out
         assert "**Improvements:** 0 🟢" in out
@@ -116,7 +116,7 @@ class TestPassingNoChange:
     def test_no_newly_failing_section_when_no_regressions(self) -> None:
         baseline, report = self._identical_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc1234"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc1234"
         )
         assert "Newly failing checks" not in out
 
@@ -156,14 +156,14 @@ class TestPassingWithImprovements:
     def test_verdict_announces_improvements(self) -> None:
         baseline, report = self._improved_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="def5678"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="def5678"
         )
         assert "✅ All scorers passing · 2 improvements 🟢" in out
 
     def test_delta_column_shows_signed_positives(self) -> None:
         baseline, report = self._improved_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="def5678"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="def5678"
         )
         assert "+0.57 🟢" in out  # 0.97 - 0.40
         assert "+0.46 🟢" in out  # 0.91 - 0.45
@@ -171,7 +171,7 @@ class TestPassingWithImprovements:
     def test_counts_show_two_improvements_one_unchanged(self) -> None:
         baseline, report = self._improved_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="def5678"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="def5678"
         )
         assert "**Regressions:** 0 🔴" in out
         assert "**Improvements:** 2 🟢" in out
@@ -213,15 +213,15 @@ class TestRegressing:
     def test_verdict_announces_regressions(self) -> None:
         baseline, report = self._regressed_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="9abc012"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="9abc012"
         )
-        assert out.startswith("<!-- pipewise-eval-report:factspark -->")
+        assert out.startswith("<!-- pipewise-eval-report:news-analysis -->")
         assert "❌ 1 regression · was passing on main, failing here" in out
 
     def test_delta_column_shows_signed_negatives_with_red_emoji(self) -> None:
         baseline, report = self._regressed_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="9abc012"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="9abc012"
         )
         assert "-0.55 🔴" in out  # 0.45 - 1.00 (the regression)
         assert "-0.13 🔴" in out  # 0.81 - 0.94 (score delta)
@@ -230,7 +230,7 @@ class TestRegressing:
     def test_newly_failing_section_lists_regression_with_run_id(self) -> None:
         baseline, report = self._regressed_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="9abc012"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="9abc012"
         )
         assert "<details><summary><b>Newly failing checks (1)</b></summary>" in out
         assert "`Regex` × `format`" in out
@@ -240,7 +240,7 @@ class TestRegressing:
     def test_counts_show_one_regression(self) -> None:
         baseline, report = self._regressed_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="9abc012"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="9abc012"
         )
         assert "**Regressions:** 1 🔴" in out
         assert "**Improvements:** 0 🟢" in out
@@ -259,7 +259,7 @@ class TestNoBaseline:
                 )
             ]
         )
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc1234")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc1234")
         assert "🆕 1 run · 1/1 scorers passing · no baseline" in out
 
     def test_no_counts_row_when_baseline_missing(self) -> None:
@@ -271,7 +271,7 @@ class TestNoBaseline:
                 )
             ]
         )
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc1234")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc1234")
         # Counts row only renders with a baseline.
         assert "**Regressions:**" not in out
         assert "**Improvements:**" not in out
@@ -285,7 +285,7 @@ class TestNoBaseline:
                 )
             ]
         )
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc1234")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc1234")
         # Main column should be `—` and Δ column should be `—`.
         assert "| — | 0.94 | — |" in out
 
@@ -308,12 +308,12 @@ class TestStructure:
 
     def test_h2_header_includes_adapter_name(self) -> None:
         report = _report(runs=[_run(run_id="r1")])
-        out = render_pr_comment(report, adapter_name="resume_tailor", short_sha="abc")
-        assert "## Pipewise eval report — resume_tailor" in out
+        out = render_pr_comment(report, adapter_name="branching_pipeline", short_sha="abc")
+        assert "## Pipewise eval report — branching_pipeline" in out
 
     def test_short_sha_appears_in_footer(self) -> None:
         report = _report(runs=[_run(run_id="r1")])
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="deadbee")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="deadbee")
         assert "<sub>Updated for `deadbee` ·" in out
 
     def test_run_level_scorers_appear_with_run_level_label(self) -> None:
@@ -325,7 +325,7 @@ class TestStructure:
                 )
             ]
         )
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc")
         assert "`CostBudget` (run-level)" in out
 
     def test_rollup_header_uses_right_aligned_separators(self) -> None:
@@ -337,7 +337,7 @@ class TestStructure:
                 )
             ]
         )
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc")
         # Right-aligned numeric columns per the locked design spec.
         assert "| :--- | ---: | ---: | ---: |" in out
 
@@ -359,7 +359,7 @@ class TestStructure:
                 ),
             ]
         )
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc")
         assert "<summary>Full report (2 runs · dataset: golden.jsonl)</summary>" in out
         assert "`run_a` | `s1` | `ExactMatch`" in out
         assert "`run_a` | `s2` | `Regex`" in out
@@ -370,18 +370,18 @@ class TestStructure:
 
     def test_output_ends_with_single_trailing_newline(self) -> None:
         report = _report(runs=[_run(run_id="r1")])
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc")
         assert out.endswith("\n")
         assert not out.endswith("\n\n")
 
     def test_dataset_name_falls_back_to_dash_when_missing(self) -> None:
         report = _report(runs=[_run(run_id="r1")], dataset_name=None)
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc")
         assert "dataset: —" in out
 
     def test_empty_report_renders_gracefully(self) -> None:
         report = _report(runs=[])
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc")
         # No table rows but header + placeholder still renders.
         assert "_No scorer results in this report._" in out
         assert "_No runs in this report._" in out
@@ -432,7 +432,7 @@ class TestFloatingPointPrecision:
         # not be exactly 0 in float. Average baseline = 0.7; average report =
         # (0.1 + 1.0 + 1.0) / 3 = 0.7 (with possible precision noise).
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         # The Δ cell should be "—" (not "+0.00 🟢" or similar).
         assert "+0.00 🟢" not in out
@@ -466,7 +466,7 @@ class TestScoreDeltasWithoutFlips:
     def test_verdict_says_no_regressions_not_no_change(self) -> None:
         baseline, report = self._score_delta_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         # Score moved up but didn't flip pass status. We don't claim "no
         # change" because the rollup table will show a non-zero Δ.
@@ -476,7 +476,7 @@ class TestScoreDeltasWithoutFlips:
     def test_extras_footnote_lists_score_deltas(self) -> None:
         baseline, report = self._score_delta_pair()
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         assert "_Plus: 1 score delta._" in out
 
@@ -504,7 +504,7 @@ class TestExtrasFootnote:
             ]
         )
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         assert "_Plus: 1 newly added._" in out
 
@@ -529,7 +529,7 @@ class TestExtrasFootnote:
             ]
         )
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         assert "_Plus: 1 removed._" in out
 
@@ -540,7 +540,7 @@ class TestExtrasFootnote:
         baseline = _report(runs=[_run(run_id="r1", step_scores=run_steps)])
         report = _report(runs=[_run(run_id="r1", step_scores=list(run_steps))])
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         assert "_Plus:" not in out
 
@@ -568,7 +568,7 @@ class TestFailingButNoRegressions:
             ]
         )
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         assert "⚠️ 1 failing scorer · no regressions vs main" in out
 
@@ -591,7 +591,7 @@ class TestSkippedVerdicts:
                 )
             ]
         )
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc")
         assert "⏭ All scorers skipped · no signal" in out
 
     def test_all_skipped_says_no_signal_with_baseline(self) -> None:
@@ -603,7 +603,7 @@ class TestSkippedVerdicts:
         )
         report = _report(runs=[_run(run_id="r1", step_scores=[_skipped_step_entry("a", "Regex")])])
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         assert "⏭ All scorers skipped · no signal" in out
 
@@ -634,7 +634,7 @@ class TestSkippedVerdicts:
             ]
         )
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         assert "⏭ 1 newly-skipped scorer · no regressions vs main" in out
 
@@ -665,7 +665,7 @@ class TestSkippedVerdicts:
             ]
         )
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         assert "✅ All non-skipped scorers passing" in out
 
@@ -681,7 +681,7 @@ class TestSkippedVerdicts:
                 )
             ]
         )
-        out = render_pr_comment(report, adapter_name="factspark", short_sha="abc")
+        out = render_pr_comment(report, adapter_name="news-analysis", short_sha="abc")
         # 1 passing of 2 total; (1 skipped) annotation included.
         assert "1/2 scorers passing (1 skipped)" in out
 
@@ -712,7 +712,7 @@ class TestSkippedVerdicts:
             ]
         )
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         assert "1 newly skipped" in out
         assert "1 newly running" in out
@@ -745,7 +745,7 @@ class TestSkippedVerdicts:
             ]
         )
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         # Only r1's single entry is genuinely unchanged. r2's two entries
         # are from a new run; counting them as "unchanged" would be a lie.
@@ -778,7 +778,7 @@ class TestSkippedVerdicts:
             ]
         )
         out = render_pr_comment(
-            report, baseline=baseline, adapter_name="factspark", short_sha="abc"
+            report, baseline=baseline, adapter_name="news-analysis", short_sha="abc"
         )
         # Only 2 are truly unchanged; the third is a transition.
         assert "**Unchanged:** 2" in out
