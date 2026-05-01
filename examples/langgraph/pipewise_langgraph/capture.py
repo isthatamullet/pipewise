@@ -115,7 +115,7 @@ def capture_run(
             chunk_received_at = datetime.now(UTC)
             update = state_update or {}
 
-            new_messages = update.get("messages", []) if isinstance(update, dict) else []
+            new_messages = (update.get("messages") or []) if isinstance(update, dict) else []
             input_tokens, output_tokens = _extract_usage(new_messages)
 
             steps.append(

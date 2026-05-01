@@ -178,6 +178,17 @@ class TestCaptureRun:
         assert run.total_latency_ms is not None
         assert run.total_latency_ms >= 0
 
+    def test_explicit_none_messages_does_not_raise(self):
+        graph = _MockGraph(
+            chunks=[{"agent": {"messages": None}}],
+            topology=["agent"],
+        )
+        run = capture_run(graph, {}, run_id="t6", pipeline_name="test")
+        assert len(run.steps) == 1
+        assert run.steps[0].status == "completed"
+        assert run.steps[0].input_tokens is None
+        assert run.steps[0].output_tokens is None
+
 
 class TestSerialize:
     def test_serializes_ai_message(self):
