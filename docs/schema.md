@@ -22,15 +22,24 @@ list:
 > happened."**
 
 Pipewise records *runs*, not *definitions*. Branches are captured by which
-`step_id` was executed; skipped steps are recorded with `status="skipped"`.
-Conditional steps that didn't run are simply absent from the steps list.
+`step_id` was executed. A step that didn't fire can either be **explicitly
+recorded** with `status="skipped"` (useful when the adapter wants the absence
+to be visible — e.g., the LangGraph reference adapter emits a `tools__1`
+skipped step when the agent answers without tool calls) or **simply omitted**
+from the steps list. Iteration (a node firing multiple times) is captured by
+emitting one `StepExecution` per iteration; the reference adapters use a
+`<step>__N` suffix (`agent__1`, `agent__2`, …), but adopters can use any
+convention as long as `step_id`s are unique within a run.
 
 This collapses an entire class of complexity (DAG-aware schemas, conditional-
 edge encoding, cycle detection) into a flat ordered list. Anything you'd
 want to know about how a run actually unfolded is recoverable from the
 sequence of `step_id`s and statuses.
 
-The two worked examples in §7 and §8 below show what this looks like for both a linear pipeline and a branching one.
+The two worked examples in §7 and §8 below show what this looks like for two
+agent-orchestration paradigms — an imperative-loop agent (Anthropic SDK) and
+a declarative-graph agent (LangGraph) — exercising iteration and skipped-step
+semantics respectively.
 
 ---
 
@@ -61,7 +70,7 @@ from pipewise import PipelineRun
 | Field | Type | Notes |
 |---|---|---|
 | `run_id` | `str` (non-empty) | Globally unique. Used in default filenames; pick something filesystem-safe. |
-| `pipeline_name` | `str` (non-empty) | Stable name for the pipeline (e.g., `"factspark"`, `"resume-tailor"`). |
+| `pipeline_name` | `str` (non-empty) | Stable name for the pipeline (e.g., `"langgraph-react-agent"`, `"anthropic-agent-react"`). |
 | `started_at` | `AwareDatetime` | Naive datetimes are rejected — see [§6.2](#62-timezone-aware-datetimes-required). |
 | `status` | `RunStatus` | `"completed"` / `"partial"` / `"failed"`. No `"running"` (see [§6.4](#64-no-running-status)). |
 | `adapter_name` | `str` (non-empty) | Identifies which adapter produced this run. Required for reproducibility. |
@@ -73,7 +82,7 @@ from pipewise import PipelineRun
 |---|---|---|---|
 | `pipeline_version` | `str \| None` | `None` | Semver of your prompts/pipeline definition, if you version them. |
 | `completed_at` | `AwareDatetime \| None` | `None` | **Required when `status="completed"`** (see [§6.5](#65-terminal-status-validators)). |
-| `initial_input` | `dict[str, Any]` | `{}` | The input that started the run (article URL, job posting, etc.). |
+| `initial_input` | `dict[str, Any]` | `{}` | The input that started the run (user message, prompt template, etc.). |
 | `steps` | `list[StepExecution]` | `[]` | Steps in the order they actually executed. |
 | `final_output` | `dict[str, Any] \| None` | `None` | Aggregated final output, if distinct from `steps[-1].outputs`. **Not auto-derived** (see [§6.6](#66-no-auto-derivation)). |
 | `total_cost_usd` | `float \| None` | `None` | `>= 0`. Adapter-set; not auto-summed from steps. |
@@ -95,7 +104,7 @@ from pipewise import StepExecution
 
 | Field | Type | Notes |
 |---|---|---|
-| `step_id` | `str` (non-empty) | Stable identifier — **NOT** `"step_N"`. Pipelines with variants need stable IDs (e.g., `"write_resume_chronological"` vs. `"write_resume_hybrid"`). |
+| `step_id` | `str` (non-empty) | Stable identifier — **NOT** `"step_N"`. Use a name from your pipeline's vocabulary (e.g., `"agent"`, `"tools"`, `"calculator"`). For iteration or branching variants, derive a stable suffix (e.g., `"agent__1"` for the first iteration, `"agent__2"` for the second). |
 | `step_name` | `str` (non-empty) | Human-readable display name. |
 | `started_at` | `AwareDatetime` | Naive datetimes rejected. |
 | `status` | `StepStatus` | `"completed"` / `"skipped"` / `"failed"`. No `"running"`. |
@@ -106,7 +115,7 @@ from pipewise import StepExecution
 |---|---|---|---|
 | `completed_at` | `AwareDatetime \| None` | `None` | **Required when `status="completed"`**. |
 | `error` | `str \| None` | `None` | Free-form error message. Optional even on `"failed"` — adapters that don't have an error string leave it `None` rather than fabricating one. |
-| `executor` | `str \| None` | `None` | Agent / skill / script name (e.g., `"stupid-meter"`). |
+| `executor` | `str \| None` | `None` | Agent / skill / script name (e.g., `"agent"`, `"calculator"`). |
 | `model` | `str \| None` | `None` | Model identifier (e.g., `"claude-opus-4-7"`). |
 | `provider` | `str \| None` | `None` | Model provider (e.g., `"anthropic"`, `"google"`). |
 | `inputs` / `outputs` | `dict[str, Any]` | `{}` | Opaque payloads. Pipewise doesn't interpret content; scorers do. |
@@ -186,8 +195,8 @@ Adapter-specific data goes there.
 
 ```python
 StepExecution(
-    step_id="analyze",
-    step_name="Analyze",
+    step_id="agent__1",
+    step_name="Agent",
     started_at=now,
     completed_at=now,
     status="completed",
@@ -195,7 +204,7 @@ StepExecution(
 )
 
 StepExecution(
-    step_id="analyze",
+    step_id="agent__1",
     ...,
     my_adapter_field="some_value",   # ❌ ValidationError
 )
@@ -264,7 +273,7 @@ Adapters set these explicitly. This lets adapters record values from
 authoritative sources (e.g., a billing-API total) rather than re-summing
 from imperfect step data.
 
-> Why: explicit > implicit, and "I summed 7 step costs" lies about the
+> Why: explicit > implicit, and "I summed N step costs" lies about the
 > precision of cost data that adapters often only have at run-level granularity.
 >
 
@@ -292,156 +301,190 @@ immutability that matters for regression detection and audit.
 
 ---
 
-## 7. Worked example 1 — linear pipeline (FactSpark-shape)
+## 7. Worked example 1 — imperative-loop agent (Anthropic SDK)
 
-A 7-step news-analysis pipeline: each step processes the article further,
-all-Claude except step 7 (Gemini for verification).
+A two-iteration ReAct agent loop running on Claude Haiku 4.5. The first
+iteration asks for two tool calls in parallel; the tools execute; the second
+iteration synthesizes the final answer. The Python below is condensed from a
+real captured run; the full JSON lives at
+[`examples/anthropic-quickstarts/runs/golden-001-iteration.json`](../examples/anthropic-quickstarts/runs/golden-001-iteration.json).
 
 ```python
 from datetime import datetime, timedelta, UTC
 from pipewise import PipelineRun, StepExecution
 
-base = datetime(2026, 2, 24, 8, 0, 0, tzinfo=UTC)
+base = datetime(2026, 5, 1, 11, 56, 31, tzinfo=UTC)
 
 run = PipelineRun(
-    run_id="bbc_trump_tariffs_supreme_court_20260224",
-    pipeline_name="factspark",
+    run_id="golden-001-iteration",
+    pipeline_name="anthropic-agent-react",
+    pipeline_version="0.1.0",
     started_at=base,
-    completed_at=base + timedelta(seconds=70),
+    completed_at=base + timedelta(seconds=2),
     status="completed",
     initial_input={
-        "url": "https://www.bbc.com/...",
-        "title": "Trump threatens countries that 'play games'...",
+        "user_input": "What is 47 * 23 + 100? Then tell me the capital of France.",
     },
     steps=[
         StepExecution(
-            step_id="analyze",
-            step_name="Analyze Article",
-            started_at=base,
-            completed_at=base + timedelta(seconds=10),
+            step_id="agent__1",                # ← iteration 1 of the agent loop
+            step_name="Agent (iteration 1)",
+            started_at=base + timedelta(seconds=1),
+            completed_at=base + timedelta(seconds=1),
             status="completed",
-            executor="analyze-article",
-            model="claude-opus-4-7",
+            executor="agent",
+            model="claude-haiku-4-5-20251001",
             provider="anthropic",
-            outputs={"article_metadata": {...}, "extracted_claims": [...]},
+            outputs={
+                "stop_reason": "tool_use",
+                "content": [
+                    {"type": "tool_use", "name": "calculator",
+                     "input": {"expression": "47 * 23 + 100"}},
+                    {"type": "tool_use", "name": "lookup_country",
+                     "input": {"name": "France"}},
+                ],
+            },
+            input_tokens=729, output_tokens=96, cost_usd=0.001209,
         ),
         StepExecution(
-            step_id="enhance_entities",
-            step_name="Enhance Entities",
-            started_at=base + timedelta(seconds=10),
-            completed_at=base + timedelta(seconds=20),
+            step_id="calculator__1",           # ← per-tool step_ids
+            step_name="Calculator (iteration 1)",
+            started_at=base + timedelta(seconds=1),
+            completed_at=base + timedelta(seconds=1),
             status="completed",
-            executor="enhance-entities-geographic",
-            model="claude-opus-4-7",
-            provider="anthropic",
-            outputs={"key_entities": [...], "article_metadata": {...}},
+            executor="calculator",
+            outputs={"output": "1181"},
         ),
-        # ... steps 3-6 ...
         StepExecution(
-            step_id="verify_claims",
-            step_name="Verify Claims",
-            started_at=base + timedelta(seconds=60),
-            completed_at=base + timedelta(seconds=70),
+            step_id="lookup_country__1",
+            step_name="Lookup Country (iteration 1)",
+            started_at=base + timedelta(seconds=1),
+            completed_at=base + timedelta(seconds=1),
             status="completed",
-            executor="verify-claims",
-            model="gemini-3.1-pro",        # different provider
-            provider="google",
-            outputs={"verification_metadata": {...}, "claim_verifications": [...]},
+            executor="lookup_country",
+            outputs={"output": {"capital": "Paris", "population": 67750000}},
+        ),
+        StepExecution(
+            step_id="agent__2",                # ← iteration 2: synthesizes final answer
+            step_name="Agent (iteration 2)",
+            started_at=base + timedelta(seconds=2),
+            completed_at=base + timedelta(seconds=2),
+            status="completed",
+            executor="agent",
+            model="claude-haiku-4-5-20251001",
+            provider="anthropic",
+            outputs={
+                "stop_reason": "end_turn",
+                "content": [{"type": "text",
+                             "text": "**47 * 23 + 100 = 1,181** ..."}],
+            },
+            input_tokens=903, output_tokens=44, cost_usd=0.001123,
         ),
     ],
-    adapter_name="factspark-pipewise-adapter",
-    adapter_version="1.0.0",
+    final_output={"text": "**47 * 23 + 100 = 1,181** ..."},
+    total_cost_usd=0.002332,
+    total_input_tokens=1632,
+    total_output_tokens=140,
+    total_latency_ms=1916,
+    adapter_name="pipewise-anthropic-quickstarts",
+    adapter_version="0.1.0",
 )
 ```
 
-Note that **step 7's output shape is completely different** from steps 1-6
-(`verification_metadata`, `claim_verifications` vs. `article_metadata`,
-`extracted_claims`). The opaque `outputs: dict[str, Any]` field handles
-this without coupling.
+Two things this example teaches:
 
-The full prototype adapter that built this from real `step1-7.json` files
-lives at
-[`tests/integration/test_factspark_validation_gate.py`](../tests/integration/test_factspark_validation_gate.py).
+- **`agent__1` and `agent__2` have structurally different `outputs`.** The
+  first stops on `tool_use` and emits `tool_use` content blocks; the second
+  stops on `end_turn` and emits a single `text` block. The opaque
+  `outputs: dict[str, Any]` field absorbs this difference without forcing a
+  per-step schema.
+- **Iteration is in the `step_id`, not the schema.** `agent__1`, `agent__2`
+  and `calculator__1` are conventional adapter-side identifiers. Pipewise
+  itself only requires uniqueness within a run.
+
+The full working capture-and-adapter pair lives at
+[`examples/anthropic-quickstarts/`](../examples/anthropic-quickstarts/).
 
 ---
 
-## 8. Worked example 2 — branching / conditional pipeline (resume-tailor-shape)
+## 8. Worked example 2 — declarative-graph agent with skipped path (LangGraph)
 
-A 7-agent pipeline with branches and gates. The same source pipeline can
-produce wildly different runs depending on inputs. Pipewise captures one
-specific run:
-
-- **Step 2 was skipped** (`discovery` — not needed for this role)
-- **Step 4 chronological branch ran** (not 4b hybrid). Branch captured via `step_id`
-- **Step 6 outputs Markdown** (not JSON like the other steps)
-- **Step 7 was gated off** by step 5's PASS/FAIL → simply absent from the list
+A LangGraph `create_react_agent` graph — same agent shape as §7 but with a
+different orchestration paradigm (declarative graph rather than imperative
+loop). This run shows the user greeting the agent without giving it tool
+work, so the `tools` node never fires. The adapter records that absence
+explicitly as `status="skipped"`. Condensed from
+[`examples/langgraph/runs/golden-002-skipped.json`](../examples/langgraph/runs/golden-002-skipped.json).
 
 ```python
 from pipewise import PipelineRun, StepExecution
 
 run = PipelineRun(
-    run_id="deepintent_senior_program_manager",
-    pipeline_name="resume-tailor",
+    run_id="golden-002-skipped",
+    pipeline_name="langgraph-react-agent",
+    pipeline_version="0.1.0",
     started_at=base,
-    status="partial",                       # gated step → didn't finish all stages
-    initial_input={"company": "DeepIntent", "role": "Senior Program Manager"},
+    completed_at=base + timedelta(seconds=5),
+    status="completed",
+    initial_input={
+        "messages": [
+            {"role": "user", "content": "Hello! What can you help with?"},
+        ],
+    },
     steps=[
         StepExecution(
-            step_id="analyze_posting",
-            step_name="Analyze Posting",
-            ...,
+            step_id="agent__1",
+            step_name="Agent (iteration 1)",
+            started_at=base + timedelta(seconds=4),
+            completed_at=base + timedelta(seconds=4),
             status="completed",
-            outputs={"job_metadata": {...}, "required_skills": [...]},
-        ),
-        StepExecution(
-            step_id="discovery",
-            step_name="Discovery",
-            started_at=...,
-            status="skipped",               # ← step explicitly skipped
-            metadata={"skip_reason": "discovery not needed for this role"},
-            # completed_at intentionally None — see §6.5
-        ),
-        StepExecution(
-            step_id="research_company",
-            ...,
-            status="completed",
-        ),
-        StepExecution(
-            step_id="write_resume_chronological",  # ← branch captured by step_id
-            step_name="Write Resume (Chronological)",
-            ...,
-            status="completed",
-            outputs={"formatted_resume": {...}, "character_counts": {...}},
-        ),
-        # NOT "write_resume_hybrid" — that's the OTHER branch and is absent here
-        StepExecution(
-            step_id="critique",
-            ...,
-            status="completed",
-        ),
-        StepExecution(
-            step_id="format_export",
-            ...,
-            status="completed",
+            executor="agent",
+            model="gemini-3.1-pro-preview",
+            provider="google",
             outputs={
-                "format": "markdown",       # ← mixed-format outputs are fine
-                "ats_target": "ats_safe",
-                "content": "# TYLER GOHR\n\n...",   # the actual markdown body
+                "messages": [{
+                    "type": "ai",
+                    "content": [{
+                        "type": "text",
+                        "text": "Hello! I can help you with...",
+                    }],
+                }],
             },
+            input_tokens=186, output_tokens=336,
         ),
-        # Step 7 (export_canva) deliberately absent — gated off by step 5's status.
-        # branches are recorded by which step_id ran;
-        # absent steps mean they didn't run."
+        StepExecution(
+            step_id="tools__1",
+            step_name="Tools (iteration 1)",
+            started_at=base + timedelta(seconds=4),
+            status="skipped",                  # ← node existed in the graph; never fired
+            completed_at=None,                  # ← legitimately absent for "skipped"; see §6.5
+            executor="tools",
+            inputs={},
+            outputs={},
+        ),
     ],
-    adapter_name="resume-tailor-pipewise-adapter",
-    adapter_version="1.0.0",
+    total_input_tokens=186,
+    total_output_tokens=336,
+    total_latency_ms=4518,
+    adapter_name="pipewise-langgraph",
+    adapter_version="0.1.0",
 )
 ```
 
-The full prototype adapter — including reading real Markdown from `_ats_safe.md`
-files and confirming byte-for-byte JSON round-trip survives smart quotes
-and em-dashes — lives at
-[`tests/integration/test_resume_validation_gate.py`](../tests/integration/test_resume_validation_gate.py).
+The `tools__1` step is recorded **explicitly** with `status="skipped"`
+rather than omitted from the list. This is an adapter-level choice: the
+LangGraph reference adapter records nodes that the compiled graph topology
+*could* have fired but didn't, so a downstream scorer can spot a run that
+*should* have invoked tools but didn't. An adapter that prefers the
+omitted-on-skip convention can simply leave the entry out — pipewise
+tolerates either pattern.
+
+For the iterated counterpart of this run — same graph, an input that
+exercises both tools and produces `agent__1` → `tools__1` → `tools__2` →
+`agent__2` — see
+[`runs/golden-001-iteration.json`](../examples/langgraph/runs/golden-001-iteration.json).
+The full working capture-and-adapter pair lives at
+[`examples/langgraph/`](../examples/langgraph/).
 
 ---
 
@@ -484,6 +527,6 @@ JSON shape is intentionally minimal so it's stable across pipewise releases.
 ## 10. Where to go next
 
 - [`docs/adapter-guide.md`](adapter-guide.md) — how to build an adapter for *your* pipeline
-- [`tests/integration/test_factspark_validation_gate.py`](../tests/integration/test_factspark_validation_gate.py) — full working linear-pipeline adapter (~80 lines)
-- [`tests/integration/test_resume_validation_gate.py`](../tests/integration/test_resume_validation_gate.py) — full working branching-pipeline adapter
+- [`examples/anthropic-quickstarts/`](../examples/anthropic-quickstarts/) — full working imperative-loop reference adapter (Anthropic SDK)
+- [`examples/langgraph/`](../examples/langgraph/) — full working declarative-graph reference adapter (LangGraph)
 
