@@ -82,7 +82,7 @@ class StepExecution(BaseModel):
     error: str | None = None
 
     executor: str | None = None
-    """Agent / skill / script name that ran this step (e.g., "stupid-meter")."""
+    """Agent / skill / script name that ran this step (e.g., "quality-check")."""
 
     model: str | None = None
     """Model identifier (e.g., "claude-opus-4-7", "gemini-3.1-pro")."""
