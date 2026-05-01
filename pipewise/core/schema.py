@@ -7,7 +7,7 @@ Pipeline definitions can be DAGs with branches and conditional steps, but a
 single run is always a linear "what actually happened." Branches are captured
 by which `step_id` was executed; skipped steps are recorded with
 `status="skipped"`. This keeps the schema small while still expressing both
-linear (FactSpark-shape) and branching (resume-tailor-shape) pipelines.
+linear and branching pipelines.
 
 Design rationale and locked decisions are tracked in the project's internal
 plan + decisions log.
@@ -82,7 +82,7 @@ class StepExecution(BaseModel):
     error: str | None = None
 
     executor: str | None = None
-    """Agent / skill / script name that ran this step (e.g., "stupid-meter")."""
+    """Agent / skill / script name that ran this step (e.g., "quality-check")."""
 
     model: str | None = None
     """Model identifier (e.g., "claude-opus-4-7", "gemini-3.1-pro")."""
@@ -141,7 +141,7 @@ class PipelineRun(BaseModel):
     """
 
     pipeline_name: str = Field(min_length=1)
-    """Stable name for the pipeline (e.g., "factspark", "resume-tailor")."""
+    """Stable name for the pipeline (e.g., "news-analysis", "support-triage")."""
 
     pipeline_version: str | None = None
     """Semver of the pipeline definition (your prompts), if versioned."""
