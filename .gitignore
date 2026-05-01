@@ -18,6 +18,9 @@ CLAUDE.local.md
 # Local pipewise output (generated runs, reports)
 runs/
 
+# Reference-adapter sample datasets are committed artifacts, not local output.
+!examples/*/runs/
+
 # Python
 __pycache__/
 *.py[cod]

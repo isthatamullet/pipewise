@@ -1,0 +1,156 @@
+{
+  "run_id": "golden-001-iteration",
+  "pipeline_name": "langgraph-react-agent",
+  "pipeline_version": "0.1.0",
+  "started_at": "2026-05-01T11:26:23.027522Z",
+  "completed_at": "2026-05-01T11:26:28.580338Z",
+  "status": "completed",
+  "initial_input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is 47 * 23 + 100? Then tell me the capital of France."
+      }
+    ]
+  },
+  "steps": [
+    {
+      "step_id": "agent__1",
+      "step_name": "Agent (iteration 1)",
+      "started_at": "2026-05-01T11:26:26.138273Z",
+      "completed_at": "2026-05-01T11:26:26.138273Z",
+      "status": "completed",
+      "error": null,
+      "executor": "agent",
+      "model": "gemini-3.1-pro-preview",
+      "provider": "google",
+      "inputs": {},
+      "outputs": {
+        "messages": [
+          {
+            "type": "ai",
+            "content": [],
+            "tool_calls": [
+              {
+                "name": "calculator",
+                "args": {
+                  "expression": "47 * 23 + 100"
+                },
+                "id": "2d76ccef-4970-4af9-93ea-b48f882e41a5",
+                "type": "tool_call"
+              },
+              {
+                "name": "lookup_country",
+                "args": {
+                  "name": "France"
+                },
+                "id": "a7d00415-5a73-4f43-a7db-07c842dafc81",
+                "type": "tool_call"
+              }
+            ]
+          }
+        ]
+      },
+      "input_tokens": 201,
+      "output_tokens": 219,
+      "cost_usd": null,
+      "latency_ms": null,
+      "metadata": {}
+    },
+    {
+      "step_id": "tools__1",
+      "step_name": "Tools (iteration 1)",
+      "started_at": "2026-05-01T11:26:26.142906Z",
+      "completed_at": "2026-05-01T11:26:26.142906Z",
+      "status": "completed",
+      "error": null,
+      "executor": "tools",
+      "model": "gemini-3.1-pro-preview",
+      "provider": "google",
+      "inputs": {},
+      "outputs": {
+        "messages": [
+          {
+            "type": "tool",
+            "content": "1181",
+            "tool_call_id": "2d76ccef-4970-4af9-93ea-b48f882e41a5",
+            "name": "calculator"
+          }
+        ]
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cost_usd": null,
+      "latency_ms": null,
+      "metadata": {}
+    },
+    {
+      "step_id": "tools__2",
+      "step_name": "Tools (iteration 2)",
+      "started_at": "2026-05-01T11:26:26.145319Z",
+      "completed_at": "2026-05-01T11:26:26.145319Z",
+      "status": "completed",
+      "error": null,
+      "executor": "tools",
+      "model": "gemini-3.1-pro-preview",
+      "provider": "google",
+      "inputs": {},
+      "outputs": {
+        "messages": [
+          {
+            "type": "tool",
+            "content": "{\"capital\": \"Paris\", \"population\": 67750000}",
+            "tool_call_id": "a7d00415-5a73-4f43-a7db-07c842dafc81",
+            "name": "lookup_country"
+          }
+        ]
+      },
+      "input_tokens": null,
+      "output_tokens": null,
+      "cost_usd": null,
+      "latency_ms": null,
+      "metadata": {}
+    },
+    {
+      "step_id": "agent__2",
+      "step_name": "Agent (iteration 2)",
+      "started_at": "2026-05-01T11:26:28.578134Z",
+      "completed_at": "2026-05-01T11:26:28.578134Z",
+      "status": "completed",
+      "error": null,
+      "executor": "agent",
+      "model": "gemini-3.1-pro-preview",
+      "provider": "google",
+      "inputs": {},
+      "outputs": {
+        "messages": [
+          {
+            "type": "ai",
+            "content": [
+              {
+                "type": "text",
+                "text": "The result of 47 * 23 + 100 is **1181**. \n\nThe capital of France is **Paris**.",
+                "extras": {
+                  "signature": "EugCCuUCAQw51sdgo/fDqIfchUDoofHCzFcjy/wkyigAJt1h3la2UV1zWu/vZ0/O02b3zm1opE5XYbMa2y9h9iMyq0wiNOGQ6YF3sFUWlfCQ0sSt5gskDmlHNDnxgKzBWKfFXM9AWXznF/l/RmXmBICJvIMHkWrC6B5P4cgA5E5lvYHOfkbO4PD4ge4KvWhcROjlenFQgrYRevpDFpTDo6iI2DwFu+mNEG3VXtAHxoz+8HXdaUk15eQcDdgpEj3QRZn0JIBpFIYiPdd/YJB3MWaXiRy48JfyrC6KRZmUn+F65hcY2bnl4kiDrnOHIESK1pZkPttI1QfTILyHW1C8Nk7oteSe2dM4x1N+KMpTN30yhv8AM0TTLlOGVHL0OJZUFe+WXLizqhwHbHHIWU4Z5g85RUOodeqpBNr3K6fJtVyeqV0rN8SwF7CiGPaeH5XKwmlNnJSwM3iVW/6WffykoyxtlvFgyDf5wpbm"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "input_tokens": 456,
+      "output_tokens": 136,
+      "cost_usd": null,
+      "latency_ms": null,
+      "metadata": {}
+    }
+  ],
+  "final_output": null,
+  "total_cost_usd": null,
+  "total_input_tokens": 657,
+  "total_output_tokens": 355,
+  "total_latency_ms": 5552,
+  "adapter_name": "pipewise-langgraph",
+  "adapter_version": "0.1.0",
+  "metadata": {}
+}
