@@ -60,7 +60,7 @@ A regex check that only makes sense on steps producing user-facing text:
 from pipewise.scorers import RegexScorer
 
 scorer = RegexScorer(
-    field="article_body",
+    field="body_text",
     pattern=r".{100,}",
     applies_to_step_ids=["step_a", "step_b", "step_c"],
 )
@@ -91,7 +91,7 @@ Field-level deep equality. Score is the fraction of fields that matched; `passed
 ```python
 from pipewise.scorers import ExactMatchScorer
 
-scorer = ExactMatchScorer(fields=["title", "stupidity_rating"])
+scorer = ExactMatchScorer(fields=["title", "confidence_score"])
 result = scorer.score(actual=actual_step, expected=golden_step)
 # result.score == 1.0 if both fields match; 0.5 if one matches; 0.0 if neither
 ```
@@ -120,8 +120,8 @@ Pass when `|actual - expected| <= tolerance` for a numeric field. Two modes: abs
 ```python
 from pipewise.scorers import NumericToleranceScorer
 
-# Absolute: catch FactSpark's stupidity_rating shifting by more than 10 points
-abs_scorer = NumericToleranceScorer(field="stupidity_rating", tolerance=10)
+# Absolute: catch a confidence_score field shifting by more than 10 points
+abs_scorer = NumericToleranceScorer(field="confidence_score", tolerance=10)
 
 # Relative: catch a cost field drifting more than 10% from baseline
 rel_scorer = NumericToleranceScorer(field="cost_usd", tolerance=0.1, relative=True)
@@ -138,10 +138,10 @@ from pipewise.scorers import JsonSchemaScorer
 
 scorer = JsonSchemaScorer(schema={
     "type": "object",
-    "required": ["title", "stupidity_rating"],
+    "required": ["title", "confidence_score"],
     "properties": {
         "title": {"type": "string"},
-        "stupidity_rating": {"type": "integer", "minimum": 0, "maximum": 100},
+        "confidence_score": {"type": "integer", "minimum": 0, "maximum": 100},
     },
 })
 result = scorer.score(actual_step)
@@ -224,7 +224,7 @@ Same `on_missing` semantics as `CostBudgetScorer` — including the cost-and-lat
 
 ## Running scorers end-to-end
 
-The runnable script [`examples/demo_phase2_scorers.py`](../examples/demo_phase2_scorers.py) exercises all eight scorers on a representative pipeline step. It loads a real FactSpark step output if one is available locally; otherwise it falls back to a synthetic step with the same shape.
+The runnable script [`examples/demo_phase2_scorers.py`](../examples/demo_phase2_scorers.py) exercises all eight scorers on a synthetic pipeline step shaped like real adapter output.
 
 ```bash
 uv run python examples/demo_phase2_scorers.py
@@ -242,21 +242,21 @@ Each `pipewise eval` invocation writes a JSON report to `<output-root>/<timestam
 
 ```json
 {
-  "report_id": "factspark-runs_20260430T051313Z",
+  "report_id": "news-analysis-runs_20260430T051313Z",
   "generated_at": "2026-04-30T05:13:13Z",
   "pipewise_version": "0.0.1",
-  "dataset_name": "factspark-runs",
-  "scorer_names": ["article-body-present", "cost-cap", "latency-cap"],
+  "dataset_name": "news-analysis-runs",
+  "scorer_names": ["body-text-present", "cost-cap", "latency-cap"],
   "runs": [
     {
-      "run_id": "02242026_bbc_trump_tariffs_supreme_court",
-      "pipeline_name": "factspark",
-      "adapter_name": "factspark-pipewise-adapter",
+      "run_id": "news-sample-001",
+      "pipeline_name": "news-analysis",
+      "adapter_name": "news-analysis-pipewise-adapter",
       "adapter_version": "0.1.0",
       "step_scores": [
         {
           "step_id": "analyze",
-          "scorer_name": "article-body-present",
+          "scorer_name": "body-text-present",
           "result": {
             "status": "passed",
             "score": 1.0,
