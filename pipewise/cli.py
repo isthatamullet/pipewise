@@ -131,7 +131,7 @@ def eval_cmd(
         str | None,
         typer.Option(
             "--adapter",
-            help="Module path of the adapter (e.g. 'factspark.integrations.pipewise.adapter'). "
+            help="Module path of the adapter (e.g. 'news_analysis_pipewise.adapter'). "
             "Required unless --scorers <toml> is supplied.",
         ),
     ] = None,
