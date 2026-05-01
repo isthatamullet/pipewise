@@ -417,7 +417,10 @@ explicitly as `status="skipped"`. Condensed from
 [`examples/langgraph/runs/golden-002-skipped.json`](../examples/langgraph/runs/golden-002-skipped.json).
 
 ```python
+from datetime import datetime, timedelta, UTC
 from pipewise import PipelineRun, StepExecution
+
+base = datetime(2026, 5, 1, 11, 26, 28, tzinfo=UTC)
 
 run = PipelineRun(
     run_id="golden-002-skipped",
