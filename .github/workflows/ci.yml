@@ -1,26 +1,17 @@
 name: CI
 
+# Runs on every PR + push to main. The job body is gated by a path filter
+# so doc-only and adapter-subdir-only changes short-circuit successfully.
+# The workflow always fires (no `paths-ignore`) so required status checks —
+# `lint-typecheck-test (3.11)` and `lint-typecheck-test (3.12)` — pass
+# uniformly even on PRs that don't touch core code. Without this, repo
+# rulesets that require these checks deadlock on doc-only PRs.
+
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - 'CHANGELOG.md'
-      - 'README.md'
-      - 'CLAUDE.md'
-      - '.github/actions/**'
-      - 'examples/langgraph/**'
-      - 'examples/anthropic-quickstarts/**'
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - 'CHANGELOG.md'
-      - 'README.md'
-      - 'CLAUDE.md'
-      - '.github/actions/**'
-      - 'examples/langgraph/**'
-      - 'examples/anthropic-quickstarts/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -37,25 +28,50 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Detect changed paths
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            core:
+              - 'pipewise/**'
+              - 'tests/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/ci.yml'
+
+      - name: No core changes — short-circuit (success)
+        if: steps.changes.outputs.core != 'true'
+        run: |
+          echo "::notice::Doc-only / adapter-subdir change; skipping lint/typecheck/test."
+          echo "::notice::Required status checks still report success so branch protection isn't deadlocked."
+
       - name: Install uv
+        if: steps.changes.outputs.core == 'true'
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
       - name: Set up Python ${{ matrix.python-version }}
+        if: steps.changes.outputs.core == 'true'
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
+        if: steps.changes.outputs.core == 'true'
         run: uv sync --all-extras --dev
 
       - name: Lint (ruff)
+        if: steps.changes.outputs.core == 'true'
         run: uv run ruff check .
 
       - name: Format check (ruff)
+        if: steps.changes.outputs.core == 'true'
         run: uv run ruff format --check .
 
       - name: Type check (mypy)
+        if: steps.changes.outputs.core == 'true'
         run: uv run mypy pipewise/
 
       - name: Test (pytest)
+        if: steps.changes.outputs.core == 'true'
         run: uv run pytest -ra
