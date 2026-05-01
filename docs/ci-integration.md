@@ -25,7 +25,7 @@ A single sticky comment per adapter on every PR, updated in place across pushes:
 
 **Regressions:** 0 🔴 · **Improvements:** 2 🟢 · **Unchanged:** 2
 
-<details><summary>Full report (2 runs · dataset: golden.jsonl)</summary>
+<details><summary>Full report (1 run · dataset: golden.jsonl)</summary>
 …
 </details>
 
@@ -316,7 +316,7 @@ For the full set of states the renderer handles (passing-no-change, passing-impr
 - **Canonical dataset:** the two committed golden runs at [`examples/anthropic-quickstarts/runs/`](../examples/anthropic-quickstarts/runs/) — `golden-001-iteration.json` (multi-iteration agent loop with two parallel tool calls) and `golden-002-skipped.json` (greeting input, no tool calls). Together they exercise iteration, per-tool steps, and an agent that stops on `end_turn` without using tools.
 - **Adapter name:** `pipewise_anthropic_quickstarts`.
 - **Baseline retention:** 90 days (default).
-- **Default scorer suite:** `anthropic_agent_response_shape` (step, scoped to `agent__1..8` matching the agent's `DEFAULT_MAX_ITERATIONS`), `run_latency_60s`, `run_cost_10c` with `on_missing="skip"`. See [`examples/anthropic-quickstarts/pipewise_anthropic_quickstarts/adapter.py`](../examples/anthropic-quickstarts/pipewise_anthropic_quickstarts/adapter.py) for the source.
+- **Default scorer suite:** `anthropic_agent_response_shape` (step, scoped to `agent__1..8` matching the agent's `DEFAULT_MAX_ITERATIONS`), `run_latency_60s`, and `run_cost_10c` (with `on_missing="skip"` so unrecognized-model runs short-circuit instead of failing). See [`examples/anthropic-quickstarts/pipewise_anthropic_quickstarts/adapter.py`](../examples/anthropic-quickstarts/pipewise_anthropic_quickstarts/adapter.py) for the source.
 
 For the LangGraph reference adapter, the same pattern applies — substitute `pipewise_langgraph` for the adapter name and point at [`examples/langgraph/runs/`](../examples/langgraph/runs/) for the dataset.
 
