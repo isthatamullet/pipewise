@@ -136,8 +136,7 @@ def main(argv: list[str] | None = None) -> int:
     _print_result(
         "RegexScorer(field='_serialized', pattern=r'Example|Article')",
         # outputs is a nested dict; demonstrate the scorer on a string field
-        # by pulling a top-level reference value into a flattened view. For
-        # this demo we just regex the whole step's serialized outputs.
+        # by regexing the whole step's serialized outputs.
         RegexScorer(field="_serialized", pattern=r"Example|Article").score(
             step.model_copy(update={"outputs": {"_serialized": json.dumps(step.outputs)}})
         ),
