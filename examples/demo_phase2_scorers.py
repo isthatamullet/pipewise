@@ -1,8 +1,7 @@
 """Demo: run all eight Phase 2 scorers against a representative pipeline step.
 
-Loads a real FactSpark step output from the local checkout if one is
-available; otherwise falls back to a synthetic step with the same shape so
-the demo always runs.
+Uses synthetic step data shaped like real news-analysis pipeline output so
+the demo runs identically in every environment.
 
 Usage::
 
@@ -21,7 +20,6 @@ import json
 import os
 import sys
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from pipewise import PipelineRun, StepExecution
@@ -37,47 +35,37 @@ from pipewise.scorers import (
 # These two are gated behind extras; import inside the demo functions so the
 # script still runs when extras aren't installed.
 
-# Sample FactSpark article — used when running locally with FactSpark checked out.
-_LOCAL_FACTSPARK_STEP = (
-    Path.home() / "factspark" / "articles" / "02242026_bbc_trump_tariffs_supreme_court_step5.json"
-)
-
 
 def _load_step() -> tuple[StepExecution, dict[str, Any]]:
-    """Load a real FactSpark step output if available, else synthesize one."""
-    if _LOCAL_FACTSPARK_STEP.exists():
-        outputs = json.loads(_LOCAL_FACTSPARK_STEP.read_text())
-        source = f"real FactSpark step ({_LOCAL_FACTSPARK_STEP.name})"
-    else:
-        outputs = {
-            "article_metadata": {
-                "title": "Example Article",
-                "source": "Example News",
-                "published_date": "2026-04-27",
-            },
-            "extracted_claims": [
-                {
-                    "claim_id": 1,
-                    "text": "Example claim text.",
-                    "stupidity_rating": 75,
-                }
-            ],
-        }
-        source = "synthetic step (FactSpark not present locally)"
+    """Synthesize a representative pipeline step for the demo."""
+    outputs = {
+        "metadata": {
+            "title": "Example Article",
+            "source": "Example News",
+            "published_date": "2026-04-27",
+        },
+        "extracted_items": [
+            {
+                "item_id": 1,
+                "text": "Example item text.",
+                "confidence_score": 75,
+            }
+        ],
+    }
 
     started = datetime(2026, 4, 27, 12, 0, 0, tzinfo=UTC)
     step = StepExecution(
-        step_id="stupid_meter",
-        step_name="Stupid Meter",
+        step_id="quality_check",
+        step_name="Quality Check",
         started_at=started,
         completed_at=started + timedelta(seconds=5),
         status="completed",
-        executor="stupid-meter",
+        executor="quality-check",
         model="claude-opus-4-7",
         provider="anthropic",
         outputs=outputs,
     )
-    return step, {"source": source}
+    return step, {"source": "synthetic step"}
 
 
 def _expected_step_for(actual: StepExecution) -> StepExecution:
@@ -87,16 +75,16 @@ def _expected_step_for(actual: StepExecution) -> StepExecution:
     interesting to report rather than always passing trivially.
     """
     expected_outputs = json.loads(json.dumps(actual.outputs))
-    claims = expected_outputs.get("extracted_claims") or []
-    if claims and isinstance(claims[0], dict) and "stupidity_rating" in claims[0]:
-        claims[0]["stupidity_rating"] = max(0, claims[0]["stupidity_rating"] - 5)
+    items = expected_outputs.get("extracted_items") or []
+    if items and isinstance(items[0], dict) and "confidence_score" in items[0]:
+        items[0]["confidence_score"] = max(0, items[0]["confidence_score"] - 5)
     return actual.model_copy(update={"outputs": expected_outputs})
 
 
 def _build_run(step: StepExecution) -> PipelineRun:
     return PipelineRun(
         run_id="demo-run",
-        pipeline_name="factspark",
+        pipeline_name="news-analysis",
         started_at=step.started_at,
         completed_at=step.completed_at,
         status="completed",
@@ -109,8 +97,10 @@ def _build_run(step: StepExecution) -> PipelineRun:
 
 
 def _print_result(scorer_name: str, result: Any) -> None:
-    verdict = "PASS" if result.passed else "FAIL"
-    line = f"  [{verdict:4}] score={result.score:.3f}  {scorer_name}"
+    verdict_map = {"passed": "PASS", "failed": "FAIL", "skipped": "SKIP"}
+    verdict = verdict_map.get(result.status, "?")
+    score_str = f"score={result.score:.3f}" if result.score is not None else "score= --- "
+    line = f"  [{verdict:4}] {score_str}  {scorer_name}"
     print(line)
     if result.reasoning:
         first_line = result.reasoning.splitlines()[0]
@@ -139,34 +129,36 @@ def main(argv: list[str] | None = None) -> int:
 
     # 1-4: trivial step scorers
     _print_result(
-        "ExactMatchScorer(fields=['article_metadata'])",
-        ExactMatchScorer(fields=["article_metadata"]).score(step, expected),
+        "ExactMatchScorer(fields=['metadata'])",
+        ExactMatchScorer(fields=["metadata"]).score(step, expected),
     )
 
     _print_result(
-        "RegexScorer(field='article_metadata.title' wrapper, pattern=r'.+')",
+        "RegexScorer(field='_serialized', pattern=r'Example|Article')",
         # outputs is a nested dict; demonstrate the scorer on a string field
         # by pulling a top-level reference value into a flattened view. For
         # this demo we just regex the whole step's serialized outputs.
-        RegexScorer(field="_serialized", pattern=r"Trump|Example").score(
+        RegexScorer(field="_serialized", pattern=r"Example|Article").score(
             step.model_copy(update={"outputs": {"_serialized": json.dumps(step.outputs)}})
         ),
     )
 
     if (
-        step.outputs.get("extracted_claims")
-        and isinstance(step.outputs["extracted_claims"], list)
-        and step.outputs["extracted_claims"]
+        step.outputs.get("extracted_items")
+        and isinstance(step.outputs["extracted_items"], list)
+        and step.outputs["extracted_items"]
     ):
-        # Numeric tolerance demo: pull stupidity_rating up to top-level for the demo
-        rating = step.outputs["extracted_claims"][0].get("stupidity_rating")
-        if rating is not None:
-            actual_flat = step.model_copy(update={"outputs": {"rating": rating}})
-            expected_rating = expected.outputs["extracted_claims"][0]["stupidity_rating"]
-            expected_flat = expected.model_copy(update={"outputs": {"rating": expected_rating}})
+        # Numeric tolerance demo: pull confidence_score up to top-level for the demo
+        confidence = step.outputs["extracted_items"][0].get("confidence_score")
+        if confidence is not None:
+            actual_flat = step.model_copy(update={"outputs": {"confidence_score": confidence}})
+            expected_confidence = expected.outputs["extracted_items"][0]["confidence_score"]
+            expected_flat = expected.model_copy(
+                update={"outputs": {"confidence_score": expected_confidence}}
+            )
             _print_result(
-                "NumericToleranceScorer(field='rating', tolerance=10)",
-                NumericToleranceScorer(field="rating", tolerance=10).score(
+                "NumericToleranceScorer(field='confidence_score', tolerance=10)",
+                NumericToleranceScorer(field="confidence_score", tolerance=10).score(
                     actual_flat, expected_flat
                 ),
             )
@@ -176,9 +168,9 @@ def main(argv: list[str] | None = None) -> int:
         JsonSchemaScorer(
             schema={
                 "type": "object",
-                "required": ["article_metadata"],
+                "required": ["metadata"],
                 "properties": {
-                    "article_metadata": {
+                    "metadata": {
                         "type": "object",
                         "required": ["title"],
                         "properties": {"title": {"type": "string"}},
@@ -194,8 +186,8 @@ def main(argv: list[str] | None = None) -> int:
 
         emb_scorer = EmbeddingSimilarityScorer(field="title", threshold=0.7)
         # Flatten title to top-level for the demo
-        actual_title = step.outputs.get("article_metadata", {}).get("title", "")
-        expected_title = expected.outputs.get("article_metadata", {}).get("title", "")
+        actual_title = step.outputs.get("metadata", {}).get("title", "")
+        expected_title = expected.outputs.get("metadata", {}).get("title", "")
         actual_flat = step.model_copy(update={"outputs": {"title": actual_title}})
         expected_flat = expected.model_copy(update={"outputs": {"title": expected_title}})
         try:
@@ -221,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
 
                 judge = LlmJudgeScorer(
                     rubric=(
-                        "The step's outputs must include an article_metadata "
+                        "The step's outputs must include a metadata "
                         "object with a non-empty title. Score 1.0 for "
                         "well-formed, 0.5 for partial, 0.0 for missing."
                     ),
