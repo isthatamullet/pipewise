@@ -2,7 +2,7 @@
 
 How to wire pipewise into your repo's CI so every PR gets an eval report posted as a sticky comment, with a diff against `main` when one's available.
 
-> **Status:** Phase 5 (the GitHub Action + this guide) is in flight. The action itself is at [`.github/actions/pipewise-eval/`](../.github/actions/pipewise-eval/) and is usable now; pin to a SHA pre-v1.0 and to a release tag once v1.0 ships.
+> **Status:** the GitHub Action is at [`.github/actions/pipewise-eval/`](../.github/actions/pipewise-eval/) and is usable today. Pin to a SHA pre-v1.0 and to a release tag once v1.0 ships.
 
 ---
 
@@ -11,66 +11,62 @@ How to wire pipewise into your repo's CI so every PR gets an eval report posted 
 A single sticky comment per adapter on every PR, updated in place across pushes:
 
 ```markdown
-<!-- pipewise-eval-report:factspark_pipewise -->
-## Pipewise eval report — factspark_pipewise
+<!-- pipewise-eval-report:pipewise_anthropic_quickstarts -->
+## Pipewise eval report — pipewise_anthropic_quickstarts
 
 ✅ All scorers passing · 2 improvements 🟢
 
 | Scorer × Step | Main | This PR | Δ |
 | :--- | ---: | ---: | ---: |
-| `ExactMatch` × `extract` | 0.40 | 0.97 | +0.57 🟢 |
-| `LlmJudge` × `analyze` | 0.45 | 0.91 | +0.46 🟢 |
-| `Regex` × `format` | 1.00 | 1.00 | — |
+| `anthropic_agent_response_shape` × `agent__1` | 1.00 | 1.00 | — |
+| `anthropic_agent_response_shape` × `agent__2` | 1.00 | 1.00 | — |
+| `run_latency_60s` (run-level) | 0.85 | 0.97 | +0.12 🟢 |
+| `run_cost_10c` (run-level) | 0.75 | 0.92 | +0.17 🟢 |
 
-**Regressions:** 0 🔴 · **Improvements:** 2 🟢 · **Unchanged:** 1
+**Regressions:** 0 🔴 · **Improvements:** 2 🟢 · **Unchanged:** 2
 
-<details><summary>Full report (1 run · dataset: golden.jsonl)</summary>
+<details><summary>Full report (2 runs · dataset: golden.jsonl)</summary>
 …
 </details>
 
-<sub>Updated for `a1b2c3d` · pipewise v0.0.2</sub>
+<sub>Updated for `a1b2c3d` · pipewise v0.1.0</sub>
 ```
 
 The verdict line is the most prominent element — reviewers can tell at a glance whether the PR is safe (`✅`), warning (`⚠️`), or breaking (`❌`). The `Δ` column shows signed deltas vs `main` with 🟢/🔴 emoji as the color channel (GitHub markdown strips inline color). Newly-failing checks expand into a `<details>` block with the specific case + scorer + reason. The full per-case table lives in another `<details>` block — collapsed by default so the comment stays scannable.
 
 ### Real-world example: regression caught
 
-The example above is illustrative; the snippet below is the actual comment posted by `pipewise-eval` on a Phase 5 #39 validation-gate PR against FactSpark, where one canonical article's `full_article_content` field was deliberately emptied to simulate a pipeline-output regression. The action correctly flagged the single failed scorer, surfaced it in the verdict line, and dropped the offending case into the "Newly failing checks" detail block — exactly the operational signal a reviewer needs to know whether to merge.
+The example above is illustrative; the snippet below shows what the comment looks like when the action catches a real regression. Imagine a capture-code change that inadvertently dropped the `stop_reason` field from one of the agent step's serialized outputs — the `anthropic_agent_response_shape` scorer (a `JsonSchemaScorer` requiring `content` and `stop_reason`) flips to failing on the affected step. The action surfaces it in the verdict line, drops the offending case into the "Newly failing checks" detail block, and leaves the unaffected steps and run-level scorers green — the operational signal a reviewer needs to know whether to merge.
 
 ```markdown
-<!-- pipewise-eval-report:factspark_pipewise -->
-## Pipewise eval report — factspark_pipewise
+<!-- pipewise-eval-report:pipewise_anthropic_quickstarts -->
+## Pipewise eval report — pipewise_anthropic_quickstarts
 
 ❌ 1 regression · was passing on main, failing here
 
 | Scorer × Step | Main | This PR | Δ |
 | :--- | ---: | ---: | ---: |
-| `cost-cap` (run-level) | 1.00 | 1.00 | — |
-| `latency-cap` (run-level) | 1.00 | 1.00 | — |
-| `article-body-present` × `analyze` | 1.00 | 0.67 | -0.33 🔴 |
-| `article-body-present` × `enhance_analytics_ui` | 1.00 | 1.00 | — |
-| `article-body-present` × `enhance_content` | 1.00 | 1.00 | — |
-| `article-body-present` × `enhance_entities` | 1.00 | 1.00 | — |
-| `article-body-present` × `enhance_source` | 1.00 | 1.00 | — |
-| `article-body-present` × `stupid_meter` | 1.00 | 1.00 | — |
-| `article-body-present` × `verify_claims` | 0.00 | 0.00 | — |
+| `run_latency_60s` (run-level) | 1.00 | 1.00 | — |
+| `run_cost_10c` (run-level) | 1.00 | 1.00 | — |
+| `anthropic_agent_response_shape` × `agent__1` | 1.00 | 1.00 | — |
+| `anthropic_agent_response_shape` × `agent__2` | 1.00 | 0.00 | -1.00 🔴 |
 
-**Regressions:** 1 🔴 · **Improvements:** 0 🟢 · **Unchanged:** 26
+**Regressions:** 1 🔴 · **Improvements:** 0 🟢 · **Unchanged:** 3
 
 <details><summary><b>Newly failing checks (1)</b></summary>
 
-- `article-body-present` × `analyze` · run `02242026_bbc_trump_tariffs_supreme_court` — score 1.00 → 0.00 (passed → failed)
+- `anthropic_agent_response_shape` × `agent__2` · run `golden-001-iteration` — score 1.00 → 0.00 (passed → failed)
 
 </details>
 
-<details><summary>Full report (3 runs · dataset: canonical-runs)</summary>
+<details><summary>Full report (1 run · dataset: golden.jsonl)</summary>
 …per-case table omitted for brevity…
 </details>
 
-<sub>Updated for `592e250` · pipewise v0.0.1</sub>
+<sub>Updated for `592e250` · pipewise v0.1.0</sub>
 ```
 
-The roll-up table averages across all 3 articles in the canonical dataset — the affected article scores 0.00, the other two score 1.00 each, so the average is `2/3 ≈ 0.67`. The "Newly failing checks" block names the specific run, so reviewers can navigate directly to the failing case without scanning the full report.
+The "Newly failing checks" block names the specific run and step, so reviewers navigate directly to the failing case without scanning the full report. Run-level scorers (`run_latency_60s`, `run_cost_10c`) stay green because the regression was structural — output-shape, not budget-shape.
 
 ---
 
@@ -313,16 +309,16 @@ For the full set of states the renderer handles (passing-no-change, passing-impr
 
 ---
 
-## Worked example: FactSpark
+## Worked example: pipewise-anthropic-quickstarts
 
-FactSpark is one of pipewise's two reference adapter integrations. Its CI integration follows the pattern documented above, with a few specifics:
+`pipewise-anthropic-quickstarts` is one of pipewise's two in-tree reference adapters. Its CI integration follows the pattern documented above, with these specifics:
 
-- **Canonical dataset:** ~3 articles from `factspark-app/articles/canonical/` (a fixed set chosen to exercise different pipeline branches).
-- **Adapter name:** `factspark_pipewise`.
-- **Baseline retention:** 90 days.
-- **Validation gate:** the [Phase 5 #39 validation gate](https://github.com/isthatamullet/pipewise/issues/39) wires this pattern into factspark-app and is the end-to-end proof that the pattern works against a real production pipeline.
+- **Canonical dataset:** the two committed golden runs at [`examples/anthropic-quickstarts/runs/`](../examples/anthropic-quickstarts/runs/) — `golden-001-iteration.json` (multi-iteration agent loop with two parallel tool calls) and `golden-002-skipped.json` (greeting input, no tool calls). Together they exercise iteration, per-tool steps, and an agent that stops on `end_turn` without using tools.
+- **Adapter name:** `pipewise_anthropic_quickstarts`.
+- **Baseline retention:** 90 days (default).
+- **Default scorer suite:** `anthropic_agent_response_shape` (step, scoped to `agent__1..8` matching the agent's `DEFAULT_MAX_ITERATIONS`), `run_latency_60s`, `run_cost_10c` with `on_missing="skip"`. See [`examples/anthropic-quickstarts/pipewise_anthropic_quickstarts/adapter.py`](../examples/anthropic-quickstarts/pipewise_anthropic_quickstarts/adapter.py) for the source.
 
-Until pipewise v1.0 ships, the FactSpark adapter and pipeline live in `factspark-app/integrations/pipewise/` (private repo). Once both go public alongside v1.0, the worked example above will be upgraded to live links pointing at the public repos. *(See [Phase 6 prep: public mirror repos for reference adapters](https://github.com/isthatamullet/pipewise/issues/35) for the plan.)*
+For the LangGraph reference adapter, the same pattern applies — substitute `pipewise_langgraph` for the adapter name and point at [`examples/langgraph/runs/`](../examples/langgraph/runs/) for the dataset.
 
 ---
 
