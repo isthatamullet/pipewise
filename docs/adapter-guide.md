@@ -195,7 +195,7 @@ The recommended pattern for new adapters is the capture/adapter split. Both refe
 
 `pipewise eval --dataset <path.jsonl>` consumes a JSONL file where **each line is a complete serialized `PipelineRun`** (not a path or pointer). That JSONL is built upstream of pipewise, by your own code, in four steps:
 
-1. **Your pipeline runs** against your dataset of *inputs* and produces some on-disk record of each completed run — either a raw native format (per-step JSON files, log dumps, etc.) or, in the recommended pattern, a complete `PipelineRun` JSON written by a capture primitive (see "Capture vs adapter: run-time / eval-time split" below; both reference adapters take this approach).
+1. **Your pipeline runs** against your dataset of *inputs* and produces some on-disk record of each completed run — either a raw native format (per-step JSON files, log dumps, etc.) or, in the recommended pattern, a complete `PipelineRun` JSON written by a capture primitive (see "Capture vs adapter: run-time / eval-time split" above; both reference adapters take this approach).
 2. **Your runner code calls `adapter.load_run(raw_path)`** for each completed run, getting back a `PipelineRun` object.
 3. **Your runner serializes each `PipelineRun` to one line of JSONL** via `run.model_dump_json()` and writes the lines to your golden dataset file.
 4. **`pipewise eval --dataset golden.jsonl --adapter <module>`** reads the JSONL, validates each row as a `PipelineRun`, and runs your default scorers (or the ones in `--scorers <toml>` if supplied).
@@ -262,7 +262,8 @@ def capture_run(graph, initial_input, *, run_id, pipeline_name,
             n = iteration_counter[node_name]
             seen_nodes.add(node_name)
 
-            new_messages = (state_update or {}).get("messages") or []
+            update = state_update or {}
+            new_messages = (update.get("messages") or []) if isinstance(update, dict) else []
             input_tokens, output_tokens = _extract_usage(new_messages)
 
             captured_at = datetime.now(UTC)
@@ -270,7 +271,7 @@ def capture_run(graph, initial_input, *, run_id, pipeline_name,
                 step_id=f"{node_name}__{n}",
                 step_name=f"{node_name.replace('_', ' ').title()} (iteration {n})",
                 executor=node_name, model=model, provider=provider,
-                inputs={}, outputs=_serialize(state_update),
+                inputs={}, outputs=_serialize(update),
                 started_at=captured_at, completed_at=captured_at,
                 status="completed",
                 input_tokens=input_tokens or None,
@@ -358,6 +359,7 @@ The structurally interesting bit is how capture observes each LLM call and tool 
 # pipewise_anthropic_quickstarts/capture.py — abridged
 from collections import defaultdict
 from datetime import UTC, datetime
+from typing import Any
 import time
 
 from pipewise.core.schema import PipelineRun, StepExecution
@@ -379,7 +381,7 @@ def capture_run(client, user_input, *, run_id, pipeline_name, system,
     iteration_counter: dict[str, int] = defaultdict(int)
     steps: list[StepExecution] = []
 
-    def sink(event_kind: str, event_data: dict) -> None:
+    def sink(event_kind: str, event_data: dict[str, Any]) -> None:
         captured_at = datetime.now(UTC)
         if event_kind == "llm_call":
             response = event_data["response"]
