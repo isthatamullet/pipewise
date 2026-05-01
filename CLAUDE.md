@@ -6,7 +6,7 @@
 
 ## Project Overview
 
-**pipewise** is an open-source Python library + CLI for evaluating multi-step LLM pipelines. It is pipeline-agnostic: any pipeline plugs in via an adapter file. Two real-world reference integrations validate the abstraction across different pipeline shapes (one linear news-analysis pipeline, one branching/conditional resume-tailoring pipeline).
+**pipewise** is an open-source Python library + CLI for evaluating multi-step LLM pipelines. It is pipeline-agnostic: any pipeline plugs in via an adapter file. Two reference adapters validate the abstraction against widely-used OSS frameworks: `pipewise_anthropic_quickstarts` adapts the [Anthropic Quickstarts `agents`](https://github.com/anthropics/anthropic-quickstarts/tree/main/agents) example (imperative-loop orchestration), and `pipewise_langgraph` adapts a [LangGraph](https://langchain-ai.github.io/langgraph/) `create_react_agent` graph (declarative-graph orchestration). Both ship as in-tree subpackages under `examples/`.
 
 **Goal:** v1.0 in 6-8 weeks.
 
@@ -25,7 +25,7 @@ When information conflicts, the most recent doc update wins. Update both source 
 These rules are load-bearing for the project's positioning. Violating any of them undermines the "general framework" narrative that justifies the project.
 
 - **Adapter pattern is sacred.** `pipewise/` core never imports from any specific pipeline. If you find yourself writing `if pipeline_name == "X"` in core code, stop and refactor.
-- **Adapters live in their pipeline's repo, not in pipewise.** Pipewise's `examples/` directory only links to external adapter implementations.
+- **Adapters do not bleed into pipewise core.** For pipelines adopters control, the adapter lives in the pipeline's own repo. For OSS reference pipelines (LangGraph, Anthropic Quickstarts) where there is no pipeline repo to link to, the adapter ships as an in-tree subpackage under `examples/<framework>/` with its own `pyproject.toml` and dep stack — pipewise core never imports from any of them, and `pipewise/` tests have no dependency on adapter code.
 - **Pipeline runs are immutable, append-only.** New runs never overwrite old runs. Filenames are timestamped.
 - **Pipewise EVALUATES, does not EXECUTE.** Adapters produce `PipelineRun`s; pipewise reads them and runs scorers. Pipeline execution is out of scope for v1.
 - **Pipewise's eval logic is deterministic, forever.** Same dataset + same scorers = same scores. Reproducibility is the value proposition — measurement is only meaningful when it's stable across runs. Agentic capabilities (diagnosis, optimization, monitoring, planning) live in separate packages that consume pipewise's reports and use pipewise as a tool. The eval framework is the substrate; agents are layered on top, never woven in.

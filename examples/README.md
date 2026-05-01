@@ -1,18 +1,20 @@
 # Example integrations
 
-Pipewise's adapter pattern means reference integrations live **inside the pipelines they adapt**, not in this repo. This page is just an index pointing at them.
+Pipewise is pipeline-agnostic — any multi-step LLM pipeline plugs in via an adapter file. This directory contains reference adapters that exercise the schema against widely-used OSS frameworks.
 
 ## Reference adapters
 
-Both reference adapters ship in their own pipeline repos and go public alongside pipewise v1.0.
+Two reference adapters cover the two major agent-orchestration paradigms. Both ship as in-tree subpackages with their own `pyproject.toml` and dep stack, so pipewise core stays free of adapter dependencies.
 
-| Pipeline | Domain | Shape | Adapter location |
+| Adapter | Upstream | Paradigm | Location |
 |---|---|---|---|
-| **FactSpark** | News article analysis | 7 steps, linear-ish, all-JSON, mixed Anthropic / Google models | `factspark-app/integrations/pipewise/` |
-| **Resume-tailor** | Job application tailoring | 7 agents, branching + conditional, optional steps, mixed JSON / Markdown side-products | `job-search/integrations/pipewise/` |
+| **`pipewise_langgraph`** | [LangGraph](https://langchain-ai.github.io/langgraph/) `create_react_agent` | Declarative graph orchestration | [`./langgraph/`](./langgraph/) |
+| **`pipewise_anthropic_quickstarts`** | [Anthropic Quickstarts `agents`](https://github.com/anthropics/anthropic-quickstarts/tree/main/agents) | Imperative loop orchestration (Anthropic SDK) | [`./anthropic-quickstarts/`](./anthropic-quickstarts/) |
 
-Both adapters are about ~250 lines of Python with full test coverage. Together they exercise the abstraction across two meaningfully different pipeline shapes — see [`docs/adapter-guide.md`](../docs/adapter-guide.md) for a walkthrough of the conditional-step / branching pattern the resume-tailor adapter uses.
+Both adapters demonstrate the same pipewise schema-mapping pattern — adopters can clone either and adapt it to their own production pipeline. The two share an iteration-naming convention (`<step>__N` always-suffixed) and use intentionally identical tools (`calculator` + `lookup_country`) so adopters can compare the two reference implementations side by side.
 
-## Writing your own
+Each adapter directory has its own README covering the captured sample dataset, the default scorer suite, and how to regenerate captures locally.
+
+## Writing your own adapter
 
 See [`docs/adapter-guide.md`](../docs/adapter-guide.md).
