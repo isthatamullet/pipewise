@@ -19,12 +19,12 @@ runner = CliRunner()
 def _run(steps: list[StepExecution] | None = None) -> PipelineRun:
     return PipelineRun(
         run_id="run_42",
-        pipeline_name="factspark",
+        pipeline_name="news-analysis",
         pipeline_version="1.2.0",
         started_at=NOW,
         completed_at=NOW + timedelta(seconds=12),
         status="completed",
-        adapter_name="factspark-adapter",
+        adapter_name="news-analysis-adapter",
         adapter_version="0.1.0",
         steps=steps if steps is not None else [],
         total_cost_usd=0.0349,
@@ -41,7 +41,7 @@ def _step(step_id: str = "s1", outputs: dict[str, object] | None = None) -> Step
         started_at=NOW,
         completed_at=NOW + timedelta(seconds=1, milliseconds=500),
         status="completed",
-        executor="stupid-meter",
+        executor="quality-check",
         model="claude-opus-4-7",
         cost_usd=0.0123,
         latency_ms=1500,
@@ -54,15 +54,15 @@ class TestFormatRun:
         out = format_run(_run([_step()]))
         assert "Run:" in out
         assert "run_42" in out
-        assert "factspark@1.2.0" in out
-        assert "factspark-adapter@0.1.0" in out
+        assert "news-analysis@1.2.0" in out
+        assert "news-analysis-adapter@0.1.0" in out
 
     def test_pipeline_id_omits_at_when_no_version(self) -> None:
         run = _run([_step()])
         run = run.model_copy(update={"pipeline_version": None})
         out = format_run(run)
-        assert "factspark@" not in out
-        assert "factspark" in out
+        assert "news-analysis@" not in out
+        assert "news-analysis" in out
 
     def test_lists_steps(self) -> None:
         out = format_run(_run([_step("s1"), _step("s2")]))
@@ -108,18 +108,18 @@ class TestFormatRun:
     def test_keys_mode_renders_top_level_structure(self) -> None:
         # Real-pipeline-shaped step: nested dict + list + scalar.
         outputs = {
-            "article_metadata": {"title": "T", "source": "BBC", "author": "X"},
-            "extracted_claims": [{"id": 1}, {"id": 2}, {"id": 3}],
-            "full_article_content": "lots of text here " * 100,
+            "metadata": {"title": "T", "source": "News Source A", "author": "X"},
+            "extracted_items": [{"id": 1}, {"id": 2}, {"id": 3}],
+            "body_text": "lots of text here " * 100,
             "score": 7,
         }
         out = format_run(_run([_step(outputs=outputs)]), keys=True)
-        assert "'article_metadata': dict[3]" in out
-        assert "'extracted_claims': list[3]" in out
-        assert "'full_article_content': str" in out
+        assert "'metadata': dict[3]" in out
+        assert "'extracted_items': list[3]" in out
+        assert "'body_text': str" in out
         assert "'score': int" in out
         # Values must NOT appear in keys mode.
-        assert "BBC" not in out
+        assert "News Source A" not in out
         assert "lots of text here" not in out
 
     def test_keys_mode_handles_empty_dict(self) -> None:
@@ -172,7 +172,7 @@ class TestInspectCommand:
 
         assert result.exit_code == 0, result.stdout
         assert "run_42" in result.stdout
-        assert "factspark" in result.stdout
+        assert "news-analysis" in result.stdout
 
     def test_inspect_format_json_emits_valid_json_round_trip(self, tmp_path: Path) -> None:
         run = _run([_step()])
@@ -223,7 +223,7 @@ class TestInspectCommand:
 
     def test_inspect_keys_flag_renders_structural_summary(self, tmp_path: Path) -> None:
         outputs = {
-            "article_metadata": {"a": 1, "b": 2, "c": 3},
+            "metadata": {"a": 1, "b": 2, "c": 3},
             "claims": [{"id": 1}, {"id": 2}],
             "score": 42,
         }
@@ -234,7 +234,7 @@ class TestInspectCommand:
         result = runner.invoke(app, ["inspect", str(run_path), "--keys"])
 
         assert result.exit_code == 0, result.stdout
-        assert "'article_metadata': dict[3]" in result.stdout
+        assert "'metadata': dict[3]" in result.stdout
         assert "'claims': list[2]" in result.stdout
         assert "'score': int" in result.stdout
 

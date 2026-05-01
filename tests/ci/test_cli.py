@@ -44,8 +44,8 @@ def _build_report(
         runs=[
             RunEvalResult(
                 run_id=run_id,
-                pipeline_name="factspark",
-                adapter_name="factspark_pipewise",
+                pipeline_name="news-analysis",
+                adapter_name="news_analysis_pipewise",
                 adapter_version="0.0.1",
                 step_scores=[
                     StepScoreEntry(
@@ -77,7 +77,7 @@ class TestCliInProcess:
                 "--report",
                 str(report_path),
                 "--adapter-name",
-                "factspark",
+                "news-analysis",
                 "--short-sha",
                 "abc1234",
                 "--output",
@@ -88,8 +88,8 @@ class TestCliInProcess:
         assert rc == 0
         assert output_path.exists()
         content = output_path.read_text(encoding="utf-8")
-        assert content.startswith("<!-- pipewise-eval-report:factspark -->")
-        assert "## Pipewise eval report — factspark" in content
+        assert content.startswith("<!-- pipewise-eval-report:news-analysis -->")
+        assert "## Pipewise eval report — news-analysis" in content
         assert "<sub>Updated for `abc1234`" in content
 
     def test_no_baseline_path_renders_no_diff_comment(self, tmp_path: Path) -> None:
@@ -102,7 +102,7 @@ class TestCliInProcess:
                 "--report",
                 str(report_path),
                 "--adapter-name",
-                "factspark",
+                "news-analysis",
                 "--short-sha",
                 "abc",
                 "--output",
@@ -129,7 +129,7 @@ class TestCliInProcess:
                 "--baseline",
                 str(baseline_path),
                 "--adapter-name",
-                "factspark",
+                "news-analysis",
                 "--short-sha",
                 "abc",
                 "--output",
@@ -163,7 +163,7 @@ class TestCliInProcess:
                 "--baseline",
                 str(baseline_path),
                 "--adapter-name",
-                "factspark",
+                "news-analysis",
                 "--short-sha",
                 "abc",
                 "--output",
@@ -187,7 +187,7 @@ class TestCliInProcess:
                 "--report",
                 str(report_path),
                 "--adapter-name",
-                "factspark",
+                "news-analysis",
                 "--short-sha",
                 "abc",
                 "--output",
@@ -215,7 +215,7 @@ class TestCliInProcess:
                     "--report",
                     str(report_path),
                     "--adapter-name",
-                    "factspark",
+                    "news-analysis",
                     "--short-sha",
                     "abc",
                     "--output",
@@ -237,7 +237,7 @@ class TestCliInProcess:
                 "--report",
                 str(missing_path),
                 "--adapter-name",
-                "factspark",
+                "news-analysis",
                 "--short-sha",
                 "abc",
                 "--output",
@@ -268,7 +268,7 @@ class TestCliInProcess:
                 "--baseline",
                 str(baseline_dir),
                 "--adapter-name",
-                "factspark",
+                "news-analysis",
                 "--short-sha",
                 "abc",
                 "--output",
@@ -305,7 +305,7 @@ class TestCliSubprocess:
                 "--report",
                 str(report_path),
                 "--adapter-name",
-                "factspark",
+                "news-analysis",
                 "--short-sha",
                 "deadbee",
                 "--output",
@@ -318,7 +318,7 @@ class TestCliSubprocess:
 
         assert result.returncode == 0, result.stderr
         content = output_path.read_text(encoding="utf-8")
-        assert content.startswith("<!-- pipewise-eval-report:factspark -->")
+        assert content.startswith("<!-- pipewise-eval-report:news-analysis -->")
         assert "<sub>Updated for `deadbee`" in content
 
     def test_module_run_help_flag_succeeds(self) -> None:
@@ -359,7 +359,7 @@ class TestReportRoundTrip:
                 "--report",
                 str(report_path),
                 "--adapter-name",
-                "factspark",
+                "news-analysis",
                 "--short-sha",
                 "abc",
                 "--output",

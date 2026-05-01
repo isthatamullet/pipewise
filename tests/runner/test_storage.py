@@ -16,7 +16,7 @@ NOW = datetime(2026, 4, 27, 9, 15, 0, tzinfo=UTC)
 def _report(
     *,
     generated_at: datetime = NOW,
-    dataset_name: str | None = "factspark-golden-v1",
+    dataset_name: str | None = "news-analysis-golden-v1",
     report_id: str | None = None,
 ) -> EvalReport:
     return EvalReport(
@@ -42,7 +42,7 @@ class TestWriteReport:
 
         assert report_path.exists()
         assert report_path.name == "report.json"
-        assert report_path.parent.name == "20260427T091500Z_factspark-golden-v1"
+        assert report_path.parent.name == "20260427T091500Z_news-analysis-golden-v1"
         assert report_path.parent.parent == tmp_path
 
     def test_returned_path_contents_round_trip(self, tmp_path: Path) -> None:
@@ -69,8 +69,8 @@ class TestWriteReport:
         assert first_path != second_path
         assert first_path.parent != second_path.parent
         assert {p.name for p in tmp_path.iterdir()} == {
-            "20260427T091500Z_factspark-golden-v1",
-            "20260427T091600Z_factspark-golden-v1",
+            "20260427T091500Z_news-analysis-golden-v1",
+            "20260427T091600Z_news-analysis-golden-v1",
         }
 
     def test_output_root_is_created_if_missing(self, tmp_path: Path) -> None:

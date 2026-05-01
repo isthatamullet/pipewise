@@ -140,9 +140,9 @@ class TestRunEval:
             assert scorers_seen == {"raising-step", "passing-step"}
 
     def test_dataset_name_recorded_in_report(self) -> None:
-        report = run_eval([_run()], [], [], dataset_name="factspark-golden-v1")
-        assert report.dataset_name == "factspark-golden-v1"
-        assert "factspark-golden-v1" in report.report_id
+        report = run_eval([_run()], [], [], dataset_name="news-analysis-golden-v1")
+        assert report.dataset_name == "news-analysis-golden-v1"
+        assert "news-analysis-golden-v1" in report.report_id
 
     def test_dataset_name_omitted_uses_adhoc_label(self) -> None:
         report = run_eval([_run()], [], [])

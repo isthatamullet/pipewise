@@ -24,7 +24,7 @@ inputs:
     default: ''
   adapter-name:
     description: |
-      Adapter package name (e.g. `factspark_pipewise`). Used as the
+      Adapter package name (e.g. `news_analysis_pipewise`). Used as the
       sticky-comment marker key so multi-adapter repos can post one
       comment per adapter without clobbering. Also shown in the comment
       header.
