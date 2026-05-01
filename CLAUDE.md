@@ -28,6 +28,7 @@ These rules are load-bearing for the project's positioning. Violating any of the
 - **Adapters live in their pipeline's repo, not in pipewise.** Pipewise's `examples/` directory only links to external adapter implementations.
 - **Pipeline runs are immutable, append-only.** New runs never overwrite old runs. Filenames are timestamped.
 - **Pipewise EVALUATES, does not EXECUTE.** Adapters produce `PipelineRun`s; pipewise reads them and runs scorers. Pipeline execution is out of scope for v1.
+- **Pipewise's eval logic is deterministic, forever.** Same dataset + same scorers = same scores. Reproducibility is the value proposition — measurement is only meaningful when it's stable across runs. Agentic capabilities (diagnosis, optimization, monitoring, planning) live in separate packages that consume pipewise's reports and use pipewise as a tool. The eval framework is the substrate; agents are layered on top, never woven in.
 - **No ChromaDB / no PostgreSQL / no cloud dependency in v1 core.** File-based storage only. Database support is parked.
 - **No telemetry.** Pipewise does not phone home, ever.
 
