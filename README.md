@@ -2,7 +2,7 @@
 
 **Evaluation framework for multi-step LLM pipelines.**
 
-> **Status:** Phase 5 shipped — the `pipewise-eval` GitHub Action posts sticky eval-report comments on PRs, validated end-to-end against a real production pipeline (FactSpark). Phase 6 (polish toward v1.0 launch) is in progress, with 380+ tests passing. Schema and CLI surfaces are not yet frozen — pin your install until v1.0. Star/watch to follow progress.
+> **Status:** the `pipewise-eval` GitHub Action posts sticky eval-report comments on PRs. Two in-tree reference adapters — [`pipewise-langgraph`](examples/langgraph/) (declarative-graph agent) and [`pipewise-anthropic-quickstarts`](examples/anthropic-quickstarts/) (imperative-loop agent) — exercise the schema against widely-used OSS frameworks. Polish toward v1.0 launch is in progress, with 450+ tests passing. Schema and CLI surfaces are not yet frozen — pin your install until v1.0. Star/watch to follow progress.
 
 [![CI](https://github.com/isthatamullet/pipewise/actions/workflows/ci.yml/badge.svg)](https://github.com/isthatamullet/pipewise/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -32,7 +32,7 @@ uv run pipewise eval \
 # Output:
 #   Evaluated 2 run(s) with 1 step scorer(s) + 2 run scorer(s).
 #   Scores: 14/16 passing (2 failing).
-#   Report: pipewise/reports/20260427T103015Z_factspark/report.json
+#   Report: pipewise/reports/20260427T103015Z_mypipeline/report.json
 
 # 2. Diff two reports — exits non-zero if there are regressions.
 uv run pipewise diff \
@@ -84,12 +84,12 @@ Pipewise treats the **pipeline run** as the unit of evaluation, with step-level 
 
 ## Cost capture status
 
-Pipewise's `PipelineRun` schema and `CostBudgetScorer` / `LatencyBudgetScorer` are ready to enforce budgets per step or per run. Whether they have data to enforce against depends on your pipeline:
+Pipewise's `PipelineRun` schema and `CostBudgetScorer` / `LatencyBudgetScorer` are ready to enforce budgets per step or per run. Whether they have data to enforce against depends on what your pipeline exposes:
 
-- **SDK-based pipelines** (direct `anthropic.messages.create(...)` calls or equivalent): your adapter can capture `usage.input_tokens` / `usage.output_tokens`, compute cost from a per-model price table, and populate the cost/latency fields on both the steps (`step.cost_usd`, `step.latency_ms`) AND the run-level totals (`run.total_cost_usd`, `run.total_latency_ms`). The run-level totals are what `CostBudgetScorer` and `LatencyBudgetScorer` evaluate against. Budget scorers work end-to-end.
-- **Claude-Code-orchestrated pipelines** (steps run as `.claude/agents/*.md` files): Claude Code does not currently expose per-agent usage telemetry to user code. Adapters for these pipelines populate cost fields with `None` and use `on_missing="skip"` on budget scorers. The schema is forward-compatible — once the data is available, no migration needed.
+- **Pipelines with per-call usage telemetry** (direct SDK calls, framework hooks like LangChain's `usage_metadata` or the Anthropic SDK's `Message.usage`): your adapter populates `step.cost_usd`, `step.latency_ms`, and run-level totals. Budget scorers work end-to-end. The [`pipewise-anthropic-quickstarts`](examples/anthropic-quickstarts/) reference adapter demonstrates this path with a per-model price table; the [`pipewise-langgraph`](examples/langgraph/) reference adapter captures token counts from `AIMessage.usage_metadata`.
+- **Pipelines without per-call usage telemetry** (e.g., agent runtimes that don't expose per-call usage to user code): your adapter populates cost fields with `None` and uses `on_missing="skip"` on budget scorers. The schema is forward-compatible — once telemetry becomes available, no migration needed.
 
-Cost capture for Claude-Code-orchestrated pipelines is on the roadmap once Claude Code exposes per-agent usage telemetry. (Separately, the cost-attribution path is also demonstrable in this repo as soon as a contributor opens a PR with an SDK-based pipeline integration — that's a different reference adapter, not a fix for the Claude Code path.)
+Either path uses the same schema and the same scorer suite; only the data sources differ.
 
 ## How it's positioned vs. existing tools
 
@@ -108,7 +108,7 @@ Cost capture for Claude-Code-orchestrated pipelines is on the roadmap once Claud
 - **Not a chatbot eval tool.** Pipewise's value starts at step count ≥ 2.
 - **Not a tracing/observability tool.** Use Langfuse, LangSmith, or Datadog LLM Observability for tracing. Pipewise consumes their output via an adapter; it doesn't replace them.
 - **Not coupled to any model provider.** Anthropic for the v1 `LlmJudgeScorer` only because that's what the maintainer has access to during development; pluggable from v1.1.
-- **Not a token-capture / instrumentation tool.** Pipewise consumes cost / latency / token data when your pipeline can measure it; it does not instrument your pipeline for you. SDK-based pipelines do this in the adapter; Claude-Code-orchestrated pipelines wait on upstream telemetry.
+- **Not a token-capture / instrumentation tool.** Pipewise consumes cost / latency / token data when your pipeline can measure it; it does not instrument your pipeline for you. Pipelines with per-call telemetry capture this in the adapter; pipelines without it use `on_missing="skip"` on the budget scorers.
 
 ## The adapter pattern (the key architectural commitment)
 
@@ -126,24 +126,27 @@ Cost capture for Claude-Code-orchestrated pipelines is on the roadmap once Claud
    ┌─────────┴──────────────────┐
    │                            │
 ┌──▼─────────────────────┐  ┌───▼────────────────────┐
-│  factspark_adapter.py  │  │  resume_adapter.py     │
-│  ────────────────────  │  │  ──────────────────    │
-│  Reads step1..7.json   │  │  Reads jobs/<co>/*     │
-│  → PipelineRun         │  │  → PipelineRun         │
-│  Lives IN pipeline 1   │  │  Lives IN pipeline 2   │
+│  pipewise_langgraph    │  │ pipewise_anthropic_    │
+│  (examples/langgraph/) │  │  quickstarts           │
+│  ────────────────────  │  │ (examples/anthropic-   │
+│  Captures              │  │  quickstarts/)         │
+│  create_react_agent    │  │  ─────────────────     │
+│  graph runs            │  │  Captures imperative-  │
+│  → PipelineRun         │  │  loop agent runs       │
+│                        │  │  → PipelineRun         │
 └────────────────────────┘  └────────────────────────┘
 ```
 
-Pipewise core has zero dependencies on either reference pipeline. Each pipeline plugs in via an adapter file that lives **inside the pipeline's own repo**. Adapters depend on pipewise (via PyPI install); pipewise has no knowledge of any specific pipeline. A reviewer cloning this repo sees a clean library — that's the verification of the "general framework" claim.
+Pipewise core has zero dependencies on either reference adapter. The default home for an adapter is **inside the pipeline's own repo**; the two in-tree reference adapters under `examples/<framework>/` are a deliberate carve-out for OSS reference pipelines whose upstream isn't controlled by the adopter. Each ships as an independent subpackage with its own `pyproject.toml` and dependency stack; pipewise core never imports them, and `pipewise/` tests have no dependency on adapter code. A reviewer cloning this repo sees a clean library — that's the verification of the "general framework" claim.
 
 ## Reference integrations (validate the abstraction)
 
-Two production pipelines in different domains, with completely different architectures, are the proof the framework is genuinely pipeline-agnostic:
+Two reference adapters exercise different agent-orchestration paradigms, validating that pipewise's schema and adapter pattern aren't shaped to any one framework:
 
-1. **FactSpark** — 7-step linear-ish news article analysis pipeline (Claude + Gemini), 186+ articles in production. A prototype adapter already drives the [Phase 3 end-to-end validation gate](tests/integration/test_phase3_validation_gate.py) against real article data.
-2. **Resume-tailor** — 7-step branching/conditional pipeline with mixed JSON/Markdown/PDF outputs.
+1. **[`pipewise-langgraph`](examples/langgraph/)** — declarative-graph agent built around LangGraph's `create_react_agent`. Captures iterated graph nodes (`agent__1` → `tools__1` → `agent__2`) and explicit-skipped semantics for unfired topology nodes. Default scorers exercise per-step JSON-schema validation and a run-level latency cap.
+2. **[`pipewise-anthropic-quickstarts`](examples/anthropic-quickstarts/)** — imperative-loop agent in the shape of the upstream [Anthropic Quickstarts `agents`](https://github.com/anthropics/anthropic-quickstarts/tree/main/agents) example. Captures per-LLM-call (`agent__N`) and per-tool-call (`<tool_name>__N`) steps via an event-sink callback, including per-step `cost_usd` from a small per-model price table.
 
-Full adapter links land here once Phase 4 ships.
+Both adapters ship as in-tree subpackages under `examples/<framework>/`, each with its own `pyproject.toml` and dependency stack. Pipewise core never imports them.
 
 ## Documentation
 
@@ -160,7 +163,7 @@ Full adapter links land here once Phase 4 ships.
 | 1 | `PipelineRun` + `StepExecution` schemas, scorer protocols | ✅ Shipped |
 | 2 | 8 built-in scorers (exact match, regex, numeric tolerance, JSON schema, cost / latency budgets, LLM judge, embedding similarity) | ✅ Shipped |
 | 3 | `pipewise inspect`, `pipewise eval`, `pipewise diff` CLI | ✅ Shipped |
-| 4 | FactSpark + resume-tailor reference adapters | ✅ Shipped |
+| 4 | LangGraph + Anthropic Quickstarts reference adapters | ✅ Shipped |
 | 5 | GitHub Action for PR-comment eval reports | ✅ Shipped |
 | 6 | Polish + v1.0 launch | In progress |
 
