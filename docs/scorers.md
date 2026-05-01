@@ -62,7 +62,8 @@ from pipewise.scorers import RegexScorer
 scorer = RegexScorer(
     field="body_text",
     pattern=r".{100,}",
-    applies_to_step_ids=["step_a", "step_b", "step_c"],
+    applies_to_step_ids=["analyze", "step_b", "step_c"],
+    name="body-text-present",
 )
 ```
 
