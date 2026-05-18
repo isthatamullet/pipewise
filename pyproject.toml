@@ -25,7 +25,7 @@ classifiers = [
 dependencies = [
     "pydantic>=2.7,<3",
     "jsonschema>=4.21",
-    "typer>=0.12",
+    "typer>=0.25.1",
 ]
 
 [project.optional-dependencies]
