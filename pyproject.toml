@@ -33,7 +33,7 @@ embeddings = [
     "sentence-transformers>=2.7",
 ]
 llm-judge = [
-    "anthropic>=0.40",
+    "anthropic>=0.102.0",
 ]
 
 [project.urls]
